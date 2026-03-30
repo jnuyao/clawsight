@@ -1,0 +1,102 @@
+Yaohong Zheng | Resume
+
+Yaohong Zheng
+AI Agent Infra / Agent Runtime / Backend Architecture / Engineering Lead
+
+Updated 2026-03-25
+GitHub / jnuyao — https://github.com/jnuyao
+
+Focused on Agent Runtime / AI Infra, with deep engineering background in international payments, ad delivery, and growth systems.
+
+Active OpenClaw contributor working on Agent Runtime: runtime bug fixes at the source-code level, end-to-end channel plugin analysis (WeChat / Lark), layered Memory design, observability mechanisms, and multi-agent collaboration patterns.
+
+10+ years of backend and systems architecture experience across payout orchestration at ByteDance International Payments, high-concurrency ad delivery engines at Ant Group, private-domain marketing platforms and growth systems at Tencent Ads, and analytics infrastructure at Fibodata.
+
+Target Roles: AI Agent Infra / Agent Runtime / Channel Integrations / Memory & Observability
+Agent Practice: OpenClaw Contributor · End-to-end Channel Plugin Analysis · Memory / Observability / Multi-Agent Design
+Engineering Background: ByteDance Intl. Payments · Tencent Ads · Ant Group · Freshippo · 10B PV/day · 100k+ QPS
+
+---
+
+Key Highlights
+
+OpenClaw contributions and Agent Runtime practice
+Contributed source-level fixes for real OpenClaw issues across Web UI, Usage, Gateway Logs, Feishu integrations, Markdown / rich-text parsing, and group session labeling. Mapped the full message path of WeChat and Lark plugins into the OpenClaw runtime. Authored system designs for layered Memory architecture, observability diagnostics, and multi-agent collaboration.
+Verifiable on GitHub: github.com/jnuyao
+
+Payout orchestration and reliability at scale
+Owned payout dispatch and reliability for ByteDance International Payments, building a unified dispatch capability from 0 to 1 across SLA peaks, liquidity constraints, large-amount / hold cases, channel maintenance, and real-time unhold scenarios.
+Average payout time 171 min → 105 min (-39%) · Hyperwallet -54% · 48.4% of daily flow covered
+
+High-scale ads and growth infrastructure
+Built and led ad delivery engines, private-domain marketing platforms, growth systems, and analytics infrastructure across 0-to-1 launches, scale expansion, and platform abstraction for complex business lines.
+10B PV/day · 100k+ QPS · 50B+ records · 300k/day off-app traffic
+
+---
+
+Open-source and Independent Practice
+
+Ongoing open-source contributions and independent project work. Activity available on GitHub.
+
+OpenClaw Contributor
+Runtime issue triage and source-level fixes
+Contributed source-level fixes for real OpenClaw issues across the Web UI rendering, Usage statistics, Gateway Logs pipeline, Feishu extension adapters, Markdown / rich-text parsing, and group session labeling.
+
+Channel Plugins / Runtime
+End-to-end channel plugin and message-path analysis
+Mapped the full message path of the openclaw-weixin and openclaw-lark plugins into the OpenClaw runtime: event ingestion (webhook / callback verification) → message parsing → authentication (token / OAuth) → routing and session management → agent invocation → response rendering.
+
+Memory / Observability / Team Agent
+Agent infrastructure and collaboration design
+Authored system designs for Agent infrastructure: layered Memory architecture (short-term / long-term / Bridge Policy), answer-level observability diagnostics panel, full-context understanding and conversation context switching, multi-agent collaboration hierarchy, and Team Agent workflow orchestration.
+
+---
+
+Professional Experience
+
+Feb 2024 - Present
+ByteDance · International Payments
+Technical Owner, Payout Dispatch
+Owned payout dispatch and stability for ByteDance International Payments, taking the unified dispatch capability from 0 to 1 and iterating it in production.
+- System build-out: Built a unified dispatch system from 0 to 1 across SLA peaks, liquidity constraints, large-amount / hold cases, channel maintenance, and real-time unhold scenarios.
+- Control model: Established a reusable framework for prioritization, rate limiting, release / traffic smoothing, and paired it with gray rollout, rollback, observability, alerting, and operating procedures.
+- Business impact: Reduced FY25 overall payout average duration from 171 minutes to 105 minutes (-39%), and cut Hyperwallet mid-month payout total duration by 403 minutes (-54%).
+- Cross-functional delivery: Expanded normalized dispatch governance to 48.4% of daily flow (61% channel coverage), and improved CCDC Payin success rate by about 0.5% through SmartRetry validation.
+
+Sep 2021 - Jan 2024
+Tencent Ads · Conversion Hub
+Engineering and Team Management, Private-domain Marketing Platform
+Led engineering and delivery for a private-domain marketing platform supporting merchant conversion funnels across lead acquisition, intent capture, deposits, and order placement.
+- Platform management: Owned team execution across OKRs, base architecture, staffing, release planning, and delivery cadence.
+- Core architecture: Led storage and computing for billion-scale user-behavior data, online marketing services, and domain-driven architecture.
+- Complex capabilities: Built and stabilized systems for sharding, user profiles, full-text search, and marketing automation.
+
+Dec 2017 - Sep 2021
+Ant Group / Freshippo
+Ad Delivery, Marketing Platforms, and Growth Systems
+Worked across Ant Group and Freshippo on DSP, marketing platform, and growth initiatives during periods of rapid business and system growth.
+
+Ant Group · Bailing DSP for External Ad Buying
+Built an RTB DSP from 0 to 1 during Alipay's rapid growth phase, leading the development of the business platform, delivery engine, and quality tooling. The system handled 10B PV per day and sustained over 100k QPS.
+
+Freshippo · Marketing Platform
+Built marketing capabilities for campaign planning, intelligent product selection, and off-app traffic growth, integrated Taobao ecosystem transaction data, and connected internal and external traffic channels to support 300k/day off-app traffic.
+- Long-term leverage: Built durable experience in high-concurrency architecture, high availability, platform abstraction, and growth-system design during fast-scaling phases.
+
+2015 - 2017
+Fibodata Analytics Platform
+Analytics Infrastructure
+Built a pre-computation-based analytics engine while the team scaled from tens of thousands of PV to hundreds of millions of PV.
+- Platform build: Worked on core data engineering and participated in platform architecture evolution.
+- Scale: Collected 1B PV of traffic per day and supported analytics over more than 50B records.
+- Long-term leverage: Established data-layer capabilities that were later reused across ads, growth, and marketing systems.
+
+---
+
+Education
+
+Jinan University · Dual Bachelor's Degrees in Applied Physics and Finance
+2009 - 2013
+- Dual bachelor's degrees in Applied Physics and Finance.
+- National Scholarship recipient.
+- Awarded the provincial Challenge Cup Special Prize and a national first prize.

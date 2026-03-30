@@ -1,14 +1,13 @@
 // ============================================================
 // LLM Extractor — Use Claw's model to do structured extraction
 //
-// This module interfaces with OpenClaw's LLM via the standard
-// tool interface. In standalone/test mode, it can use a
-// configurable API endpoint.
+// v0.1.1: Fixed hardcoded source_format, improved prompt
 // ============================================================
 
 import {
   CanonicalResume,
   createEmptyResume,
+  SourceFormat,
   Experience,
   Education,
   Project,
@@ -17,15 +16,8 @@ import { normalizeDate } from '../utils/date-utils';
 
 /**
  * LLM provider interface — allows plugging in different backends.
- * In OpenClaw context, this uses the agent's own model.
  */
 export interface LLMProvider {
-  /**
-   * Send a prompt and get a structured JSON response.
-   * @param systemPrompt - System-level instructions
-   * @param userPrompt - User message with the data to extract
-   * @returns Parsed JSON object
-   */
   chat(systemPrompt: string, userPrompt: string): Promise<Record<string, any>>;
 }
 
@@ -84,7 +76,7 @@ export class DefaultLLMProvider implements LLMProvider {
       throw new Error(`LLM API error: ${response.status} ${await response.text()}`);
     }
 
-    const result = await response.json();
+    const result: any = await response.json();
     const content = result.choices?.[0]?.message?.content;
     if (!content) throw new Error('Empty LLM response');
 
@@ -103,9 +95,12 @@ RULES:
 2. If a field is not found, use empty string "" or empty array [].
 3. Dates should be in ISO format: "YYYY-MM" or "YYYY-MM-DD". Use "YYYY-01" if only year is given.
 4. For "present" or "至今" or "current", use null for end date.
-5. Highlights should be quantified achievements when possible.
+5. Highlights should be quantified achievements when possible. Extract bullet points as highlights.
 6. Technologies should be specific: "React" not "frontend framework".
 7. Separate technical skills from soft skills and domain knowledge.
+8. If the resume is structured with sections (Experience, Education, etc.), follow that structure.
+9. For each work experience, extract ALL bullet points as highlights.
+10. Domain knowledge examples: "payments", "ad delivery", "marketing automation", "analytics".
 
 OUTPUT FORMAT: Return a single JSON object with this exact structure:
 {
@@ -129,8 +124,8 @@ OUTPUT FORMAT: Return a single JSON object with this exact structure:
       "start_date": "YYYY-MM or null",
       "end_date": "YYYY-MM or null",
       "description": "string or null",
-      "highlights": ["string"],
-      "technologies": ["string"]
+      "highlights": ["string - each bullet point or achievement"],
+      "technologies": ["string - specific tech mentioned"]
     }
   ],
   "education": [
@@ -144,9 +139,9 @@ OUTPUT FORMAT: Return a single JSON object with this exact structure:
     }
   ],
   "skills": {
-    "technical": ["string"],
-    "domain": ["string"],
-    "soft": ["string"],
+    "technical": ["string - programming languages, frameworks, tools"],
+    "domain": ["string - business domains and expertise areas"],
+    "soft": ["string - leadership, communication, etc."],
     "certifications": ["string"]
   },
   "projects": [
@@ -176,8 +171,15 @@ export class LLMExtractor {
 
   /**
    * Extract a CanonicalResume from raw text using LLM.
+   * @param text - The text to extract from
+   * @param sourceFormat - The source format (defaults to 'plain_text')
+   * @param sourceFile - The source file path or URL
    */
-  async extractResume(text: string): Promise<CanonicalResume> {
+  async extractResume(
+    text: string,
+    sourceFormat: SourceFormat = 'plain_text',
+    sourceFile?: string
+  ): Promise<CanonicalResume> {
     // Truncate if too long (most LLMs have context limits)
     const maxChars = 30000;
     const truncated = text.length > maxChars
@@ -193,7 +195,7 @@ export class LLMExtractor {
           `Please extract structured resume data from the following text:\n\n${truncated}`
         );
 
-        return this.mapRawToCanonical(raw);
+        return this.mapRawToCanonical(raw, sourceFormat, sourceFile);
       } catch (err) {
         lastError = err as Error;
         console.warn(
@@ -210,11 +212,15 @@ export class LLMExtractor {
   /**
    * Map raw LLM output to CanonicalResume.
    */
-  private mapRawToCanonical(raw: Record<string, any>): CanonicalResume {
+  private mapRawToCanonical(
+    raw: Record<string, any>,
+    sourceFormat: SourceFormat = 'plain_text',
+    sourceFile?: string
+  ): CanonicalResume {
     const identity = raw.identity || {};
     const contact = identity.contact || {};
 
-    const resume = createEmptyResume('pdf');
+    const resume = createEmptyResume(sourceFormat, sourceFile);
 
     resume.identity = {
       name: identity.name || '',
@@ -238,8 +244,8 @@ export class LLMExtractor {
         end: normalizeDate(e.end_date || e.endDate) || undefined,
       },
       description: e.description || undefined,
-      highlights: e.highlights || [],
-      technologies: e.technologies || [],
+      highlights: Array.isArray(e.highlights) ? e.highlights.filter(Boolean) : [],
+      technologies: Array.isArray(e.technologies) ? e.technologies.filter(Boolean) : [],
     }));
 
     resume.education = (raw.education || []).map((e: any): Education => ({
@@ -255,17 +261,17 @@ export class LLMExtractor {
 
     const skills = raw.skills || {};
     resume.skills = {
-      technical: skills.technical || [],
-      domain: skills.domain || [],
-      soft: skills.soft || [],
-      certifications: skills.certifications || [],
+      technical: Array.isArray(skills.technical) ? skills.technical.filter(Boolean) : [],
+      domain: Array.isArray(skills.domain) ? skills.domain.filter(Boolean) : [],
+      soft: Array.isArray(skills.soft) ? skills.soft.filter(Boolean) : [],
+      certifications: Array.isArray(skills.certifications) ? skills.certifications.filter(Boolean) : [],
     };
 
     resume.projects = (raw.projects || []).map((p: any): Project => ({
       name: p.name || '',
       role: p.role || '',
       description: p.description || '',
-      technologies: p.technologies || [],
+      technologies: Array.isArray(p.technologies) ? p.technologies.filter(Boolean) : [],
       url: p.url || undefined,
     }));
 

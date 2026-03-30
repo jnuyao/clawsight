@@ -140,7 +140,7 @@ export function createEmptyResume(
       parsed_at: new Date().toISOString(),
       confidence: 0,
       field_confidence: {},
-      parser_version: '0.1.0',
+      parser_version: '0.1.1',
     },
   };
 }

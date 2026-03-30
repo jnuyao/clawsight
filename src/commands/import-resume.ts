@@ -1,5 +1,8 @@
 // ============================================================
 // /import-resume Command — Main entry point for resume import
+//
+// v0.1.1: Added --content flag, pre-rendered content support,
+//          progress feedback, improved error messages
 // ============================================================
 
 import * as path from 'path';
@@ -27,6 +30,12 @@ export interface ImportResumeOptions {
   llmProvider?: LLMProvider;
   /** Dry-run mode */
   dryRun?: boolean;
+  /** Pre-rendered content (for SPA sites) */
+  preRenderedContent?: string;
+  /** Original source URL (when using --content flag) */
+  sourceUrl?: string;
+  /** Progress callback for UI feedback */
+  onProgress?: (step: string, detail?: string) => void;
 }
 
 export interface ImportResumeResult {
@@ -51,28 +60,34 @@ export async function importResume(
   opts: ImportResumeOptions
 ): Promise<ImportResumeResult> {
   const workspaceDir = opts.workspaceDir || process.cwd();
+  const progress = opts.onProgress || (() => {});
 
   try {
     // ============================================================
     // Step 0: Calculate score BEFORE import
     // ============================================================
+    progress('score_before', 'Calculating current Memory Score...');
     const scoreBefore = calculateMemoryScore(workspaceDir).score;
 
     // ============================================================
     // Step 1: Detect format
     // ============================================================
+    progress('detect', 'Detecting input format...');
+
+    // If pre-rendered content is supplied, override format to 'url'
+    const source = opts.preRenderedContent ? (opts.sourceUrl || opts.source) : opts.source;
     const detected = opts.format
       ? { format: opts.format, confidence: 1, details: 'User-specified' }
-      : detectFormat(opts.source);
+      : opts.preRenderedContent
+        ? { format: 'url' as SourceFormat, confidence: 1, details: 'Pre-rendered content provided' }
+        : detectFormat(opts.source);
 
-    console.log(
-      `[import-resume] Format: ${detected.format} ` +
-      `(confidence: ${detected.confidence}, ${detected.details})`
-    );
+    progress('detect_done', `Format: ${detected.format} (${detected.details})`);
 
     // ============================================================
     // Step 2: Parse by format
     // ============================================================
+    progress('parse', `Parsing as ${detected.format}...`);
     const llmExtractor = new LLMExtractor(opts.llmProvider);
     let resume: CanonicalResume;
 
@@ -90,7 +105,7 @@ export async function importResume(
       }
       case 'url': {
         const parser = new UrlResumeParser(llmExtractor);
-        resume = await parser.parse(opts.source);
+        resume = await parser.parse(source, opts.preRenderedContent);
         break;
       }
       default: {
@@ -108,9 +123,12 @@ export async function importResume(
       }
     }
 
+    progress('parse_done', `Parsed: ${resume.identity.name || 'Unknown'}`);
+
     // ============================================================
     // Step 3: Validate (3-layer)
     // ============================================================
+    progress('validate', 'Running 3-layer validation...');
 
     // Layer 1: Schema validation
     const schemaResult = validateSchema(resume);
@@ -121,6 +139,7 @@ export async function importResume(
         .join('\n');
       return {
         success: false,
+        resume,
         summary: 'Schema validation failed.',
         report: `❌ **Validation Failed**\n\n${errors}`,
         error: errors,
@@ -138,14 +157,24 @@ export async function importResume(
     resume._meta.confidence = confidence.overall;
     resume._meta.field_confidence = confidence.fields;
 
+    progress('validate_done', `Confidence: ${Math.round(confidence.overall * 100)}%`);
+
     // ============================================================
     // Step 4: Privacy classification
     // ============================================================
+    progress('privacy', 'Classifying privacy levels...');
     const privacy = classifyPrivacy(resume);
+
+    progress('privacy_done',
+      `Auto: ${privacy.autoWrite.length}, OptIn: ${privacy.needsOptIn.length}, ` +
+      `Discarded: ${privacy.discarded.length}`
+    );
 
     // ============================================================
     // Step 5: Write to memory
     // ============================================================
+    progress('write', opts.dryRun ? 'Generating preview (dry-run)...' : 'Writing to memory...');
+
     const writer = new MemoryWriter({
       workspaceDir,
       mode: 'merge',
@@ -154,16 +183,21 @@ export async function importResume(
 
     const writeResult = writer.write(resume, privacy, confidence);
 
+    progress('write_done', `${writeResult.fieldsWritten} fields written to ${writeResult.filesWritten.length} files`);
+
     // ============================================================
     // Step 6: Calculate score AFTER import
     // ============================================================
+    progress('score_after', 'Calculating new Memory Score...');
     const scoreAfter = opts.dryRun
-      ? scoreBefore // Can't calculate if dry-run
+      ? scoreBefore
       : calculateMemoryScore(workspaceDir).score;
 
     // ============================================================
     // Step 7: Generate report
     // ============================================================
+    progress('report', 'Generating report...');
+
     const report = generateReport(
       resume,
       privacy,
@@ -173,7 +207,8 @@ export async function importResume(
       scoreBefore,
       scoreAfter,
       detected.format,
-      opts.dryRun
+      opts.dryRun,
+      workspaceDir
     );
 
     return {
@@ -186,7 +221,7 @@ export async function importResume(
       scoreAfter,
     };
   } catch (err) {
-    // Handle UserActionRequired (e.g., LinkedIn)
+    // Handle UserActionRequired (e.g., LinkedIn, SPA)
     if (err instanceof UserActionRequired) {
       const lines = [
         `⚠️ **Action Required**\n`,
@@ -228,7 +263,8 @@ function generateReport(
   scoreBefore: number,
   scoreAfter: number,
   format: string,
-  dryRun?: boolean
+  dryRun?: boolean,
+  workspaceDir?: string
 ): string {
   const lines: string[] = [];
 
@@ -253,16 +289,22 @@ function generateReport(
   if (resume.identity.headline) {
     lines.push(`| 头衔 | ${resume.identity.headline} |`);
   }
+  if (resume.identity.location) {
+    lines.push(`| 地点 | ${resume.identity.location} |`);
+  }
   const currentJob = resume.experience.find(e => !e.period.end) || resume.experience[0];
   if (currentJob) {
-    lines.push(`| 当前公司 | ${currentJob.company} |`);
+    lines.push(`| 当前公司 | ${currentJob.company} · ${currentJob.title} |`);
   }
   if (resume.skills.technical.length > 0) {
     lines.push(`| 技术栈 | ${resume.skills.technical.slice(0, 8).join(', ')}${resume.skills.technical.length > 8 ? '...' : ''} |`);
   }
+  if (resume.skills.domain.length > 0) {
+    lines.push(`| 领域知识 | ${resume.skills.domain.slice(0, 5).join(', ')} |`);
+  }
   lines.push(`| 工作经历 | ${resume.experience.length} 段 |`);
   if (resume.education.length > 0) {
-    lines.push(`| 教育背景 | ${resume.education.map(e => e.institution).join(', ')} |`);
+    lines.push(`| 教育背景 | ${resume.education.map(e => `${e.institution} · ${e.degree}`).join(', ')} |`);
   }
   if (resume.projects.length > 0) {
     lines.push(`| 项目 | ${resume.projects.length} 个已写入 memory/projects/ |`);
@@ -304,6 +346,9 @@ function generateReport(
   const missingHints: string[] = [];
   if (!resume.identity.timezone) missingHints.push('时区偏好');
   if (resume.skills.soft.length === 0) missingHints.push('软技能');
+  if (resume.experience.length > 0 && resume.experience.every(e => e.highlights.length === 0)) {
+    missingHints.push('量化成就 (highlights)');
+  }
   if (missingHints.length > 0) {
     lines.push('### ❓ 建议补充');
     lines.push('');
@@ -317,14 +362,12 @@ function generateReport(
   lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   lines.push('');
   const delta = scoreAfter - scoreBefore;
+  const deltaStr = delta > 0 ? `+${delta}` : `${delta}`;
   lines.push(
-    `📊 Memory Score: ${scoreBefore} → **${scoreAfter}** (+${delta})`
+    `📊 Memory Score: ${scoreBefore} → **${scoreAfter}** (${deltaStr})`
   );
 
-  // Score bars
-  const scoreResult = calculateMemoryScore(
-    process.cwd() // will be recalculated
-  );
+  const scoreResult = calculateMemoryScore(workspaceDir || process.cwd());
   for (const bar of scoreResult.visualBars) {
     lines.push(`   ${bar}`);
   }

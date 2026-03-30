@@ -2,9 +2,10 @@
 
 > Import your personal data to bootstrap Claw's memory — fast.
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](#)
+[![Version](https://img.shields.io/badge/version-0.1.1-blue)](#)
 [![License](https://img.shields.io/badge/license-MIT-green)](#)
 [![OpenClaw Skill](https://img.shields.io/badge/OpenClaw-Skill-purple)](#)
+[![Tests](https://img.shields.io/badge/tests-45%20passed-brightgreen)](#)
 
 ## The Problem
 
@@ -31,7 +32,7 @@ back-and-forth exchanges.
 clawhub install claw-life-import
 
 # Or clone and build from source
-git clone https://github.com/yourname/claw-life-import.git
+git clone https://github.com/jnuyao/claw-life-import.git
 cd claw-life-import
 npm install
 npm run build
@@ -48,6 +49,15 @@ npm run build
 
 # Import from GitHub profile
 /import-resume https://github.com/username
+
+# Import from a personal website (SPA-aware)
+/import-resume https://yaohom.vercel.app/
+
+# Import plain text (e.g., copied from SPA site)
+/import-resume ./resume.txt
+
+# SPA workaround: provide pre-rendered content
+/import-resume --content "$(cat resume.txt)" --source-url https://example.com
 
 # Preview without writing (dry-run)
 /import-resume ./resume.pdf --dry-run
@@ -66,7 +76,7 @@ node dist/index.js memory-score
 
 ## Supported Formats
 
-### v0.1 (Current)
+### v0.1.1 (Current)
 
 | Format | Command | Status |
 |--------|---------|--------|
@@ -74,7 +84,7 @@ node dist/index.js memory-score
 | JSON Resume | `/import-resume ./file.json` | ✅ Supported |
 | LinkedIn JSON | `/import-resume ./linkedin-export.json` | ✅ Supported |
 | GitHub Profile | `/import-resume https://github.com/user` | ✅ Supported |
-| Personal Website | `/import-resume https://example.com` | ✅ Basic |
+| Personal Website | `/import-resume https://example.com` | ✅ SPA-aware |
 | Plain Text | `/import-resume ./resume.txt` | ✅ Supported |
 
 ### Planned
@@ -142,6 +152,7 @@ Privacy is the **#1 priority**, aligned with OpenClaw's "Security and safe defau
 │  │ PDF Parse │  │ Schema    │  │ Memory Writer   │ │
 │  │ JSON Map  │  │ Validate  │  │ Score Update    │ │
 │  │ URL Fetch │  │ Semantics │  │ User Confirm    │ │
+│  │ SPA-aware │  │ Scoring   │  │ Progress UI     │ │
 │  └──────────┘  └──────────┘  └─────────────────┘ │
 │                                                    │
 │  Memory Plugin Interface (Memsearch / Mem0 / ...)  │
@@ -155,6 +166,7 @@ claw-life-import/
 ├── SKILL.md                     # OpenClaw Skill metadata
 ├── package.json
 ├── tsconfig.json
+├── jest.config.js               # Test configuration
 ├── src/
 │   ├── index.ts                 # Entry point + CLI
 │   ├── schemas/
@@ -164,7 +176,7 @@ claw-life-import/
 │   │   ├── format-detector.ts   # Auto-detect input format
 │   │   ├── pdf-resume-parser.ts # PDF extraction
 │   │   ├── json-resume-parser.ts# JSON Resume / LinkedIn
-│   │   └── url-resume-parser.ts # GitHub / website scraping
+│   │   └── url-resume-parser.ts # GitHub / website (SPA-aware)
 │   ├── extractors/
 │   │   └── llm-extractor.ts    # LLM structured extraction
 │   ├── validators/
@@ -183,6 +195,18 @@ claw-life-import/
 │   └── utils/
 │       ├── date-utils.ts       # Date normalization
 │       └── text-utils.ts       # Text cleaning + sections
+├── tests/
+│   ├── fixtures/
+│   │   └── yaohom-resume-text.txt  # Real-world test data
+│   ├── helpers/
+│   │   └── mock-llm-provider.ts    # Mock LLM for testing
+│   ├── unit/
+│   │   ├── llm-extractor.test.ts
+│   │   ├── url-parser.test.ts
+│   │   ├── validators.test.ts
+│   │   └── privacy-classifier.test.ts
+│   └── integration/
+│       └── full-pipeline.test.ts
 └── README.md
 ```
 
@@ -212,16 +236,47 @@ npm run build
 # Run tests
 npm test
 
+# Run tests with verbose output
+npx jest --runInBand --verbose
+
 # Development mode (auto-rebuild)
 npm run dev
 ```
+
+## Changelog
+
+### v0.1.1 — Hardening with Real-World Data
+
+Tested against a real personal site resume ([yaohom.vercel.app](https://yaohom.vercel.app/)) and fixed all issues discovered:
+
+**Bug Fixes**
+- **SPA Detection**: URL parser now detects JavaScript-rendered sites (React/Vue/Next.js) that return empty HTML shells via `fetch()`. Shows clear guidance for workaround.
+- **LLM Extractor Format**: Fixed hardcoded `source_format: 'pdf'` — now correctly passes the actual source format through.
+- **Array Filtering**: LLM extraction now filters out `null`/`undefined`/empty values from arrays (highlights, technologies, skills).
+
+**New Features**
+- **Pre-rendered Content**: New `--content` flag and `preRenderedContent` option for SPA sites.
+- **Progress Callbacks**: `onProgress` callback for real-time UI feedback during import pipeline.
+- **Improved HTML→Text**: Structural HTML-to-text conversion preserving headings, lists, and links (vs. naive tag stripping).
+
+**Testing**
+- 45 tests across 5 test suites (all passing)
+- Real-world integration test with yaohom.vercel.app fixture data
+- Unit tests for: URL parser, LLM extractor, validators, privacy classifier
+- Mock LLM provider infrastructure for deterministic testing
+
+### v0.1.0 — Initial MVP
+
+Full resume import pipeline: PDF, JSON Resume, LinkedIn JSON, GitHub profiles, personal websites.
+3-layer validation, 4-level privacy, Memory Score engine.
 
 ## Roadmap
 
 | Version | Content | ETA |
 |---------|---------|-----|
-| **v0.1** ← current | Resume import (PDF/JSON/URL) + Memory Score | Done |
-| v0.2 | Memory Score visualization + guided onboarding | +3-5 days |
+| ~~v0.1~~ | Resume import (PDF/JSON/URL) + Memory Score | ✅ Done |
+| **v0.1.1** ← current | Real-world hardening + tests + SPA support | ✅ Done |
+| v0.2 | Interactive confirmation flow + guided onboarding | +3-5 days |
 | v0.3 | Browser bookmark import (Chrome/Firefox) | +1 week |
 | v0.4 | Notes import (Notion/Obsidian) | +1-2 weeks |
 | v0.5 | AI history migration (ChatGPT/Claude export) | +1 week |

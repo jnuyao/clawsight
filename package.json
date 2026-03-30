@@ -1,6 +1,6 @@
 {
   "name": "claw-life-import",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OpenClaw Skill - Import personal data to bootstrap AI agent memory",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

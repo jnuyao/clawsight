@@ -2,6 +2,8 @@
 // URL Resume Parser
 // Handles: GitHub profiles, personal websites, PDF URLs.
 // LinkedIn → guides user to export (anti-scraping).
+//
+// v0.1.1: Added SPA detection, improved HTML→text, content input
 // ============================================================
 
 import { CanonicalResume, createEmptyResume, Project } from '../schemas/canonical-resume';
@@ -22,6 +24,12 @@ export class UserActionRequired extends Error {
 
 type UrlType = 'linkedin' | 'github' | 'pdf_url' | 'personal_site' | 'generic';
 
+/**
+ * Minimum characters of extracted text to consider a page
+ * "successfully rendered". Below this → likely an SPA shell.
+ */
+const SPA_DETECTION_THRESHOLD = 150;
+
 export class UrlResumeParser {
   private llmExtractor: LLMExtractor;
 
@@ -29,7 +37,17 @@ export class UrlResumeParser {
     this.llmExtractor = llmExtractor;
   }
 
-  async parse(url: string): Promise<CanonicalResume> {
+  /**
+   * Parse a URL and return a CanonicalResume.
+   * @param url  - The URL to parse
+   * @param preRenderedContent - Optional: pre-rendered text content (for SPA sites)
+   */
+  async parse(url: string, preRenderedContent?: string): Promise<CanonicalResume> {
+    // If pre-rendered content is provided, skip fetch entirely
+    if (preRenderedContent && preRenderedContent.trim().length > SPA_DETECTION_THRESHOLD) {
+      return this.extractFromText(preRenderedContent, url);
+    }
+
     const urlType = this.classifyUrl(url);
 
     switch (urlType) {
@@ -51,6 +69,16 @@ export class UrlResumeParser {
     if (lower.includes('github.com')) return 'github';
     if (lower.endsWith('.pdf')) return 'pdf_url';
     return 'personal_site';
+  }
+
+  // ---- Extract from pre-rendered or fetched text ----
+
+  private async extractFromText(text: string, sourceUrl: string): Promise<CanonicalResume> {
+    const resume = await this.llmExtractor.extractResume(text);
+    resume._meta.source_format = 'url';
+    resume._meta.source_file = sourceUrl;
+    resume._meta.confidence = Math.min(resume._meta.confidence, 0.80);
+    return resume;
   }
 
   // ---- LinkedIn: Don't scrape, guide export ----
@@ -155,11 +183,14 @@ export class UrlResumeParser {
     return resume;
   }
 
-  // ---- Generic URL: Fetch + LLM extract ----
+  // ---- Generic URL: Fetch + SPA detection + LLM extract ----
 
   private async parseGenericUrl(url: string): Promise<CanonicalResume> {
     const response = await fetch(url, {
-      headers: { 'User-Agent': 'ClawLifeImport/0.1 (resume-parser)' },
+      headers: {
+        'User-Agent': 'ClawLifeImport/0.1 (resume-parser)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
       signal: AbortSignal.timeout(15000),
     });
 
@@ -168,28 +199,37 @@ export class UrlResumeParser {
     }
 
     const html = await response.text();
+    const text = this.htmlToText(html);
 
-    // Strip HTML tags for simple extraction (MVP approach)
-    // In production, use readability algorithm
-    const text = this.stripHtml(html);
-
-    if (text.length < 50) {
-      throw new Error('Could not extract meaningful text from URL.');
+    // SPA Detection: if extracted text is too short, the page likely
+    // requires JavaScript rendering (React, Vue, Next.js CSR, etc.)
+    if (text.length < SPA_DETECTION_THRESHOLD) {
+      throw new UserActionRequired({
+        message:
+          `The page at ${url} appears to be a JavaScript-rendered site (SPA).\n` +
+          `Only ${text.length} characters of content could be extracted from the raw HTML.\n` +
+          `The resume content is rendered client-side and cannot be fetched directly.`,
+        steps: [
+          '1. Open the page in your browser',
+          '2. Select all text (Ctrl/Cmd+A) and copy (Ctrl/Cmd+C)',
+          '3. Save to a text file: resume.txt',
+          '4. Run: /import-resume ./resume.txt',
+          '',
+          'Or use the --content flag to pipe content directly:',
+          '  /import-resume --content "$(pbpaste)" --source-url ' + url,
+        ],
+        fallback:
+          'If the site has a PDF download option, use that instead:\n' +
+          '  /import-resume ./downloaded-resume.pdf',
+      });
     }
 
-    const resume = await this.llmExtractor.extractResume(text);
-    resume._meta.source_format = 'url';
-    resume._meta.source_file = url;
-    resume._meta.confidence = Math.min(resume._meta.confidence, 0.75);
-
-    return resume;
+    return this.extractFromText(text, url);
   }
 
   // ---- PDF URL: Download and hand off ----
 
   private async handlePdfUrl(url: string): Promise<CanonicalResume> {
-    // In production, download PDF to temp file and use PdfResumeParser
-    // For MVP, we note this and throw a helpful error
     throw new Error(
       `PDF URL detected: ${url}\n` +
       `Please download the file first, then use:\n` +
@@ -209,7 +249,6 @@ export class UrlResumeParser {
       headers: {
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'ClawLifeImport/0.1',
-        // GitHub token can be passed via env for higher rate limits
         ...(process.env.GITHUB_TOKEN
           ? { 'Authorization': `token ${process.env.GITHUB_TOKEN}` }
           : {}),
@@ -256,16 +295,61 @@ export class UrlResumeParser {
       .slice(0, 15);
   }
 
-  private stripHtml(html: string): string {
-    return html
-      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/\s+/g, ' ')
-      .trim();
+  /**
+   * Improved HTML → text conversion.
+   * Preserves document structure (headings, lists, paragraphs)
+   * instead of blindly stripping all tags.
+   */
+  htmlToText(html: string): string {
+    let text = html;
+
+    // Remove non-content elements
+    text = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    text = text.replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '');
+    text = text.replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '');
+    text = text.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '');
+    text = text.replace(/<!--[\s\S]*?-->/g, '');
+
+    // Structural tags → line breaks
+    text = text.replace(/<\/?(h[1-6]|p|div|section|article|header|footer|main|nav|aside|blockquote|pre|ul|ol|table|tr)[^>]*>/gi, '\n');
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    text = text.replace(/<hr\s*\/?>/gi, '\n---\n');
+
+    // List items → bullet points
+    text = text.replace(/<li[^>]*>/gi, '\n- ');
+    text = text.replace(/<\/li>/gi, '');
+
+    // Table cells → tab separation
+    text = text.replace(/<td[^>]*>/gi, '\t');
+    text = text.replace(/<th[^>]*>/gi, '\t');
+
+    // Extract href from links (preserve URL info)
+    text = text.replace(/<a[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, '$2 ($1)');
+
+    // Strip remaining tags
+    text = text.replace(/<[^>]+>/g, '');
+
+    // Decode HTML entities
+    text = text.replace(/&nbsp;/g, ' ');
+    text = text.replace(/&amp;/g, '&');
+    text = text.replace(/&lt;/g, '<');
+    text = text.replace(/&gt;/g, '>');
+    text = text.replace(/&quot;/g, '"');
+    text = text.replace(/&#39;/g, "'");
+    text = text.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+      String.fromCharCode(parseInt(hex, 16))
+    );
+    text = text.replace(/&#(\d+);/g, (_, dec) =>
+      String.fromCharCode(parseInt(dec))
+    );
+
+    // Normalize whitespace (preserve line breaks)
+    text = text.replace(/[ \t]+/g, ' ');        // collapse horizontal space
+    text = text.replace(/\n[ \t]+/g, '\n');       // trim leading space on lines
+    text = text.replace(/[ \t]+\n/g, '\n');       // trim trailing space on lines
+    text = text.replace(/\n{3,}/g, '\n\n');       // max 2 consecutive newlines
+
+    return text.trim();
   }
 }

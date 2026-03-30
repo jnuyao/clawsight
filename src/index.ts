@@ -2,6 +2,8 @@
 // claw-life-import — Entry Point
 //
 // OpenClaw Skill for importing personal data into agent memory.
+//
+// v0.1.1: Added --content flag, --source-url flag
 // ============================================================
 
 // Re-export commands
@@ -29,6 +31,8 @@ export { detectFormat } from './parsers/format-detector';
 // CLI Entry Point (when run directly)
 // ============================================================
 
+type SourceFormat = import('./schemas/canonical-resume').SourceFormat;
+
 async function main() {
   const args = process.argv.slice(2);
 
@@ -43,9 +47,10 @@ async function main() {
     case 'import-resume':
     case '/import-resume': {
       const source = args[1];
-      if (!source) {
+      if (!source && !getArgValue(args, '--content')) {
         console.error('Error: Please provide a resume source (file path, URL, or JSON).');
         console.error('Usage: claw-life-import import-resume <source> [--format pdf|json|url] [--dry-run]');
+        console.error('       claw-life-import import-resume --content "..." --source-url <url>');
         process.exit(1);
       }
 
@@ -54,17 +59,47 @@ async function main() {
       const format = getArgValue(args, '--format') as SourceFormat | undefined;
       const dryRun = args.includes('--dry-run');
       const workspaceDir = getArgValue(args, '--workspace') || process.cwd();
+      const preRenderedContent = getArgValue(args, '--content');
+      const sourceUrl = getArgValue(args, '--source-url');
 
-      console.log(`\n🔄 Importing resume from: ${source}\n`);
+      const effectiveSource = source || sourceUrl || 'stdin';
+
+      console.log(`\n🔄 Importing resume from: ${effectiveSource}\n`);
+
+      // Progress callback for CLI
+      const onProgress = (step: string, detail?: string) => {
+        const icons: Record<string, string> = {
+          score_before: '📊',
+          detect: '🔍',
+          detect_done: '✅',
+          parse: '📄',
+          parse_done: '✅',
+          validate: '🔎',
+          validate_done: '✅',
+          privacy: '🔒',
+          privacy_done: '✅',
+          write: '💾',
+          write_done: '✅',
+          score_after: '📊',
+          report: '📋',
+        };
+        const icon = icons[step] || '  ';
+        if (detail) {
+          console.log(`${icon} ${detail}`);
+        }
+      };
 
       const result = await importResume({
-        source,
+        source: effectiveSource,
         format,
         dryRun,
         workspaceDir,
+        preRenderedContent,
+        sourceUrl,
+        onProgress,
       });
 
-      console.log(result.report);
+      console.log('\n' + result.report);
 
       if (!result.success) {
         process.exit(1);
@@ -93,7 +128,7 @@ async function main() {
 function printHelp() {
   console.log(`
 ╔═══════════════════════════════════════════════════════╗
-║           🧠 claw-life-import v0.1.0                  ║
+║           🧠 claw-life-import v0.1.1                  ║
 ║   Import personal data to bootstrap Claw memory       ║
 ╚═══════════════════════════════════════════════════════╝
 
@@ -103,6 +138,8 @@ COMMANDS:
     --format <pdf|json|url>  Force input format (auto-detected by default)
     --dry-run                Preview changes without writing
     --workspace <dir>        OpenClaw workspace directory
+    --content <text>         Pre-rendered text content (for SPA sites)
+    --source-url <url>       Original URL (used with --content)
 
   memory-score               Check how well Claw knows you
     --format <full|compact|json>  Output format
@@ -118,6 +155,12 @@ EXAMPLES:
 
   # Import from GitHub profile
   claw-life-import import-resume https://github.com/username
+
+  # Import from a personal website (SPA workaround)
+  claw-life-import import-resume --content "$(cat resume.txt)" --source-url https://example.com
+
+  # Import plain text file (e.g., copied from SPA site)
+  claw-life-import import-resume ./resume.txt
 
   # Dry-run (preview without writing)
   claw-life-import import-resume ./resume.pdf --dry-run
