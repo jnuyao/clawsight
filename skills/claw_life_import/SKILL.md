@@ -6,15 +6,14 @@ metadata:
   {
     "openclaw": {
       "emoji": "🧠",
-      "homepage": "https://github.com/jnuyao/claw-life-import",
-      "requires": {}
+      "homepage": "https://github.com/jnuyao/claw-life-import"
     }
   }
 ---
 
 # claw-life-import: Personal Data Import Skill
 
-You are an expert resume parser and memory bootstrapper. When the user invokes `/claw_life_import` (or asks to import their resume, personal data, or profile), follow this complete pipeline to extract structured information and write it into Claw memory files.
+You are an expert resume parser and memory bootstrapper. When the user invokes `/claw_life_import` or asks to import their resume/profile, follow the pipeline below.
 
 ## Trigger Conditions
 
@@ -22,217 +21,327 @@ Activate when the user:
 - Uses `/claw_life_import <source>` with a file path, URL, or pasted text
 - Says "import my resume", "导入我的简历", "import my profile"
 - Provides a resume file or URL and asks you to "remember" or "learn about me"
-- Asks to boost their Memory Score
+- Uses `/claw_life_import score` to check memory status
 
-## Pipeline Overview
+## Pipeline (6 Steps)
 
-Execute these 7 steps in order:
-1. **Score BEFORE** — Calculate current Memory Score
-2. **Detect Format** — Identify input type (PDF, JSON, URL, plain text)
-3. **Fetch & Parse** — Get the raw content
-4. **Extract** — Structured extraction into CanonicalResume schema
-5. **Validate & Score** — 3-layer validation
-6. **Privacy Filter** — Classify fields by privacy level
-7. **Write & Report** — Write to memory files, generate report
+```
+detect → parse(source-specific) → normalize & validate → privacy filter → preview → write
+```
+
+Default behavior is **preview mode**: show what will be written, wait for user confirmation before writing anything. Use `--apply` to skip confirmation.
 
 ---
 
-## Step 1: Score BEFORE
+## Step 1: Assess Current Memory
 
-Before importing, assess the current memory state. Read these files if they exist:
-- `USER.md` in the workspace root
-- `MEMORY.md` in the workspace root
-- Files under `memory/projects/` directory
+Read existing memory files (if any) to establish a baseline:
+- `USER.md` in workspace root
+- `MEMORY.md` in workspace root
+- `memory/projects/*.md`
 
-Calculate a rough score (0-100) across these 7 categories:
-
-| Category | Weight | What to look for |
-|----------|--------|-----------------|
-| Identity | 20% | Name, headline, location, timezone |
-| Skills | 15% | Technical skills, domain expertise, certifications |
-| Interests | 15% | Hobbies, topics of interest, communities |
-| Work Style | 15% | Communication preferences, working hours, methodology |
-| Projects | 15% | Project descriptions, roles, technologies |
-| Relationships | 10% | Colleagues, mentors, collaborators mentioned |
-| Lifestyle | 10% | Location, travel, daily routines |
-
-Score each category: count how many sub-fields are filled, divide by total possible, multiply by the weight.
+Compute two scores (details in "Scoring System" section below). Record them as `score_before`.
 
 ---
 
-## Step 2: Detect Format
+## Step 2: Detect Format & Route to Parser
 
-Determine the input format:
-
-| Input | Detection Method | Format |
-|-------|-----------------|--------|
-| Ends with `.pdf` | File extension | `pdf` |
-| Ends with `.json` | File extension, then inspect: has `basics.name`? → JSON Resume; has `positions`? → LinkedIn | `json_resume` / `linkedin_json` |
-| Starts with `http` containing `github.com` | URL pattern | `github` |
-| Starts with `http` containing `linkedin.com` | URL pattern | `linkedin_url` |
-| Starts with `http` | Any other URL | `url` |
-| Ends with `.txt` or `.md` | File extension | `plain_text` |
-| Raw text (no file path) | Content analysis | `plain_text` |
-
----
-
-## Step 3: Fetch & Parse
-
-Based on format, retrieve the content:
-
-### For URLs (personal sites, portfolios)
-Use `web_fetch` to get the page. If the result is very short (< 200 characters of meaningful text), the site is likely a JavaScript SPA. In that case:
-1. Tell the user: "This appears to be a JavaScript-rendered site. Let me try the browser."
-2. Use `browser` tool to navigate to the URL, wait for rendering, then extract text.
-3. If browser is unavailable, ask the user to paste the resume text directly.
-
-### For GitHub profiles
-Use `web_fetch` on these URLs in sequence:
-1. `https://api.github.com/users/{username}` — profile info
-2. `https://api.github.com/users/{username}/repos?sort=stars&per_page=20` — top repos
-3. `https://raw.githubusercontent.com/{username}/{username}/main/README.md` — profile README (may 404)
-
-### For PDF files
-Use `exec` to extract text: `python3 -c "import subprocess; ..."` or instruct the user to paste text if PDF tools aren't available.
-
-### For LinkedIn URLs
-Do NOT scrape. Instead, tell the user:
-> LinkedIn profiles cannot be scraped (anti-bot protection + ToS).
-> Please export your data manually:
-> 1. Go to LinkedIn → Settings & Privacy → Data Privacy
-> 2. Click "Get a copy of your data"
-> 3. Select "Profile" and "Connections"
-> 4. Download the ZIP, extract the JSON, then run: `/claw_life_import ./linkedin-export.json`
-
-### For JSON files / plain text / pasted content
-Use `read` tool to get the file contents, or use the pasted text directly.
+| Input | Detection | Route to |
+|-------|-----------|----------|
+| `*.pdf` | Extension | `parser_pdf` |
+| `*.json` with `basics.name` | JSON structure | `parser_json_resume` |
+| `*.json` with `positions` | JSON structure | `parser_linkedin_export` |
+| `*.txt` or `*.md` | Extension | `parser_plain_text` |
+| URL containing `github.com` | URL pattern | `parser_github_profile` |
+| URL containing `linkedin.com` | URL pattern | `parser_linkedin` (guide export) |
+| Any other URL | Default | `parser_url_resume_site` |
+| Raw pasted text | No file/URL | `parser_plain_text` |
 
 ---
 
-## Step 4: Extract — CanonicalResume Schema
+## Step 3: Source-Specific Parsers
 
-Extract ALL of the following fields from the content. Only extract what is **explicitly stated**. Do NOT infer or fabricate.
+### parser_url_resume_site
+
+This is the hardest parser. Personal sites vary wildly. Follow this **fallback chain strictly in order**:
+
+**Level 1: Direct fetch**
+```
+Use web_fetch on the URL.
+Check: does the response contain > 200 characters of meaningful text (after stripping HTML)?
+If YES → use this content, proceed to normalize.
+```
+
+**Level 2: JS bundle data extraction**
+```
+If Level 1 returned mostly empty HTML (SPA shell):
+1. Look for <script src="..."> tags in the HTML.
+   Common patterns: /static/js/main.*.js, /_next/static/chunks/app*.js, /assets/index*.js
+2. Fetch those JS files with web_fetch.
+3. Search the JS content for embedded data objects:
+   - JSON blocks with resume-like fields (name, experience, education)
+   - Large string literals or template literals containing resume text
+   - Data objects assigned to variables like `data`, `resume`, `profile`, `content`
+4. Extract the data and use it as the source text.
+```
+
+**Level 3: Alternative pages**
+```
+If Level 2 didn't work:
+1. Try common sub-paths: /resume, /cv, /about, /api/resume, /resume.json
+2. Try fetching the sitemap: /sitemap.xml
+3. If any returns meaningful content, use it.
+```
+
+**Level 4: Browser/canvas rendering**
+```
+If a browser-like capability is available (browser, canvas, puppeteer, etc.):
+1. Navigate to the URL
+2. Wait for rendering to complete
+3. Extract the visible text content
+Note: Do NOT hardcode a specific tool name. Use whatever rendering capability is available in the current environment.
+```
+
+**Level 5: User fallback**
+```
+If all above fail, tell the user:
+"这个网站是 JavaScript 渲染的，我无法自动提取内容。请用以下任一方式提供：
+1. 在浏览器中打开网站，全选复制文本，粘贴给我
+2. 如果网站有 /resume.json 或 API 接口，提供该 URL
+3. 导出为 PDF 后发给我"
+```
+
+**Anti-noise rules for web content:**
+- Strip navigation bars, footers, cookie banners, social media links
+- Remove repeated header/footer text that appears on every section
+- Filter out: "Home", "About", "Contact", "Back to top", "Copyright ©", cookie consent text
+- If the page has clear section headings (Experience, Education, Skills, Projects), use them as extraction anchors
+
+### parser_github_profile
+
+Fetch these endpoints with web_fetch (no auth needed for public profiles):
+1. `https://api.github.com/users/{username}` → name, bio, location, blog
+2. `https://api.github.com/users/{username}/repos?sort=stars&per_page=20` → top repos
+3. `https://raw.githubusercontent.com/{username}/{username}/main/README.md` → profile README (may 404, that's OK)
+
+Map to resume fields:
+- identity.name ← profile.name or username
+- identity.headline ← profile.bio
+- identity.contact.github ← profile URL
+- identity.contact.website ← profile.blog
+- skills.technical ← inferred from repo languages (count stars as weight)
+- projects ← top non-fork repos (name, description, language, stars, URL)
+
+If README exists, extract additional self-described info from it.
+
+Confidence: 0.70 baseline (GitHub has limited career info).
+
+### parser_json_resume
+
+Standard [JSON Resume](https://jsonresume.org) format. Direct 1:1 field mapping:
+- basics.name → identity.name
+- basics.label → identity.headline
+- basics.location.city → identity.location
+- basics.email → identity.contact.email
+- basics.url → identity.contact.website
+- basics.profiles → identity.contact.{github,linkedin}
+- work[] → experience[]
+- education[] → education[]
+- skills[].keywords → skills.technical (flatten)
+- projects[] → projects[]
+
+Confidence: 0.95 baseline.
+
+### parser_linkedin_export
+
+LinkedIn JSON export has nested structure:
+- positions.positionList → experience[]
+- educations.educationList → education[]
+- skills.skillList → skills.technical
+
+Confidence: 0.90 baseline.
+
+### parser_linkedin (URL — guide export)
+
+Do NOT scrape. Tell the user:
+> LinkedIn 无法直接抓取（反爬 + ToS）。请手动导出：
+> 1. LinkedIn → Settings → Data Privacy → Get a copy of your data
+> 2. 选择 "Profile"，下载 ZIP
+> 3. 解压后运行：`/claw_life_import ./linkedin-export.json`
+
+### parser_pdf
+
+Use available tools to extract text from PDF. Try in order:
+1. If `exec` is available: `python3 -c "..."` with PyMuPDF or pdftotext
+2. Ask user to paste the text content
+
+After extraction, split into sections by heading patterns and extract.
+
+Confidence: 0.80 baseline.
+
+### parser_plain_text
+
+Use the text directly. Split into sections by common resume heading patterns:
+- English: Experience, Education, Skills, Projects, Summary, Objective, Certifications
+- Chinese: 工作经历, 教育背景, 技能, 项目经历, 个人简介, 自我评价
+
+Confidence: 0.75 baseline.
+
+---
+
+## Step 4: Normalize & Validate
+
+### 4a: Extract Structured Fields
+
+From the parsed text, extract into this schema. **Only extract what is explicitly stated. Do NOT infer or fabricate.**
 
 ```json
 {
   "identity": {
     "name": "Full name",
-    "headline": "Professional title or one-line summary",
+    "headline": "Professional title / one-line summary",
     "location": "City, Country",
-    "timezone": "e.g., Asia/Shanghai",
     "contact": {
-      "email": "only if explicitly shown",
-      "phone": "only if explicitly shown",
+      "email": "if explicitly shown",
+      "phone": "if explicitly shown",
       "github": "GitHub URL",
       "linkedin": "LinkedIn URL",
       "website": "Personal site URL"
     }
   },
-  "experience": [
-    {
-      "company": "Company name",
-      "title": "Job title",
-      "start": "YYYY-MM",
-      "end": "YYYY-MM or null if current",
-      "description": "Role summary",
-      "highlights": ["Quantified achievement 1", "Achievement 2"],
-      "technologies": ["Specific tech mentioned"]
-    }
-  ],
-  "education": [
-    {
-      "institution": "School name",
-      "degree": "Degree type",
-      "field": "Field of study",
-      "start": "YYYY-MM",
-      "end": "YYYY-MM",
-      "gpa": "if mentioned"
-    }
-  ],
+  "experience": [{
+    "company": "Company name",
+    "title": "Job title / role",
+    "team": "Team or department (if mentioned)",
+    "start": "YYYY-MM",
+    "end": "YYYY-MM or null if current",
+    "description": "Role summary",
+    "highlights": ["Quantified achievement with numbers"],
+    "technologies": ["Specific tech: React, Go, PostgreSQL"]
+  }],
+  "education": [{
+    "institution": "School name",
+    "degree": "Degree type",
+    "field": "Field of study",
+    "start": "YYYY-MM",
+    "end": "YYYY-MM",
+    "achievements": ["Awards, scholarships, honors"]
+  }],
   "skills": {
-    "technical": ["Programming languages, frameworks, tools"],
-    "domain": ["Business domains, expertise areas"],
+    "technical": ["Languages, frameworks, tools, platforms"],
+    "domain": ["Business domains: payments, ads, marketing, analytics"],
     "soft": ["Leadership, communication, etc."],
     "certifications": ["Formal certifications"]
   },
-  "projects": [
-    {
-      "name": "Project name",
-      "role": "Your role",
-      "description": "What the project does",
-      "technologies": ["Tech used"],
-      "url": "Project URL if available"
-    }
-  ]
+  "projects": [{
+    "name": "Project name",
+    "role": "Your role",
+    "description": "What the project does",
+    "technologies": ["Tech used"],
+    "url": "URL if available"
+  }]
 }
 ```
 
-### Extraction Rules
-- Dates: Use ISO format `YYYY-MM`. If only year given, use `YYYY-01`. For "present"/"至今", use `null`.
-- Highlights: Prefer quantified results (e.g., "Reduced latency by 39%", "Handled 100k QPS").
-- Technologies: Be specific — "React" not "frontend framework", "Go" not "programming language".
-- Skills domain: Business domains like "payments", "advertising", "marketing automation", "analytics".
-- If text is in Chinese, extract in the ORIGINAL LANGUAGE. Do not translate.
+**Extraction rules:**
+1. Dates → ISO `YYYY-MM`. Only year → `YYYY-01`. "至今"/"present"/"current" → `null` for end. Chinese dates like `2024.02` → `2024-02`.
+2. Highlights → quantified where possible: "Reduced latency 171min → 105min (-39%)", "10B PV/day, 100k+ QPS".
+3. Technologies → specific names, not categories.
+4. Keep original language. Chinese resume → Chinese output.
+5. Same company, different teams/roles → separate experience entries with the same `company` but different `team`/`title`/dates. Do NOT merge them.
+6. If text is duplicated across sections (e.g., a project described in both "Highlights" and "Projects"), extract once, reference the richer version.
+
+### 4b: Validate
+
+**Schema checks** (block on errors):
+- ❌ `name` is empty
+- ❌ ALL of experience, education, skills, projects are empty
+- ⚠️ Experience missing company or title
+- ⚠️ Date not in YYYY-MM format
+
+**Semantic checks** (warn only):
+- ⚠️ Two experiences overlap by > 90 days (unless different teams at same company)
+- ⚠️ Experience duration > 20 years
+- ❌ Experience end date before start date
+
+**Do NOT check**: "first job before graduation" (internships, gap years, and different education systems make this unreliable).
+
+### 4c: Confidence
+
+Start from format baseline, then adjust:
+- -0.05 per validation warning
+- -0.10 per validation error
+- -0.05 if web content had noise (navigation text detected)
+- Final range: 0.0 - 1.0
 
 ---
 
-## Step 5: Validate
+## Step 5: Privacy Filter & Preview
 
-Perform these checks on the extracted data:
+### 5a: Classify Every Field
 
-### Layer 1: Schema Validation
-- ❌ Error if `name` is empty
-- ❌ Error if ALL of experience, education, skills, and projects are empty
-- ⚠️ Warning if any experience is missing company or title
-- ⚠️ Warning if dates are not in YYYY-MM format
+| Level | Name | Default Action | Fields |
+|-------|------|----------------|--------|
+| **L0** Public | Auto-include | Name, headline, job titles, company names, school names, technical skills, project names, project descriptions |
+| **L1** General | Include, cancelable | Location, work periods, education periods, highlights, domain skills, soft skills, certifications |
+| **L2a** Semi-public | Preview, batch opt-in | GitHub URL, personal website URL, LinkedIn URL (when source itself is a public page) |
+| **L2b** Private | Skip, individual opt-in | Email, phone, physical address, salary, GPA |
+| **L3** Extreme | **ALWAYS DISCARD** | Matches: ID numbers `\d{15,18}`, SSN `\d{3}-\d{2}-\d{4}`, credit cards `\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}`, passwords, API keys (`sk-`, `ghp_`, `key-`, `token`) |
 
-### Layer 2: Semantic Validation
-- ⚠️ Warning if two experiences overlap by more than 90 days
-- ⚠️ Warning if first job starts more than 1 year before graduation
-- ❌ Error if any experience has negative duration (end before start)
-- ⚠️ Warning if any experience exceeds 20 years
-- ⚠️ Warning if skills are listed but never appear in any project/experience ("orphan skills")
+**L2a rule**: If the source URL itself is a public page (e.g., a personal website or public GitHub), the contact links on that page are semi-public. Show them in preview and allow batch opt-in with "都允许公开资料" / "allow all public fields".
 
-### Layer 3: Confidence Assessment
-Rate your confidence (0.0-1.0) in the overall extraction:
-- JSON Resume: 0.95 baseline
-- LinkedIn JSON: 0.90 baseline
-- GitHub profile: 0.70 baseline
-- PDF: 0.80 baseline
-- URL/plain text: 0.75 baseline
-- Reduce by 0.05 for each validation warning, 0.10 for each error
+**L3 rule**: Scan raw text for patterns BEFORE extraction. Redact and warn if found.
+
+### 5b: Preview (DEFAULT behavior)
+
+**This is the default mode.** Present a structured preview to the user:
+
+```
+🧠 Resume Import Preview
+
+Source: {source}
+Format: {format} | Confidence: {confidence}
+
+📋 Will Write (L0 + L1):
+┌─────────────────────────────────────────┐
+│ Name: Yaohong Zheng                      │
+│ Headline: AI Agent Infra / Engineering Lead │
+│ Experience: 4 positions (2015 - Present)  │
+│ Education: Jinan University (2009 - 2013) │
+│ Skills: 12 technical, 4 domain            │
+│ Projects: 3 projects                      │
+└─────────────────────────────────────────┘
+
+🔓 Semi-public (L2a) — reply "允许公开资料" to include all:
+  • GitHub: https://github.com/jnuyao
+  • Website: https://yaohom.vercel.app/
+
+🔒 Sensitive (L2b) — reply field name to include:
+  (none found)
+
+🚫 Discarded (L3):
+  (none detected)
+
+⚠️ Warnings:
+  (none)
+
+👉 Reply:
+  • "确认" or "confirm" — write L0+L1 to memory
+  • "允许公开资料" or "allow public" — also include L2a
+  • "全部" or "all" — include L0+L1+L2a+L2b
+  • "取消" or "cancel" — abort without writing
+  • Or mention specific fields to adjust
+```
+
+**Only proceed to Step 6 after user confirms.** If the user used `--apply` flag, skip preview and write directly.
 
 ---
 
-## Step 6: Privacy Classification
+## Step 6: Write to Memory
 
-Classify EVERY extracted field into one of 4 privacy levels:
+### USER.md — Section-based merge
 
-| Level | Name | Action | Fields |
-|-------|------|--------|--------|
-| **L0** Public | Auto-write | Name, headline, job titles, company names, school names, technical skills, project names |
-| **L1** General | Write (user can cancel) | Location, work periods, education periods, project descriptions, highlights, domain skills, soft skills |
-| **L2** Sensitive | **SKIP** (user must opt-in) | Email, phone, LinkedIn URL, GitHub URL, website, salary, GPA |
-| **L3** Extreme | **ALWAYS DISCARD** | Anything matching these patterns: ID numbers (`\d{15,18}`), SSN (`\d{3}-\d{2}-\d{4}`), credit cards (`\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}`), passwords, API keys (`sk-`, `ghp_`, `key-`) |
-
-**CRITICAL**: Scan the raw text for L3 patterns BEFORE extraction. If found, redact and warn.
-
-### L2 Handling
-List all L2 fields and ask:
-> The following sensitive fields were found but NOT written (L2 — opt-in required):
-> - Email: t***@example.com
-> - Phone: +86-138****8000
-> - GitHub: https://github.com/***
->
-> Would you like to include any of these? Reply with the field names to opt-in, or "skip all" to continue.
-
----
-
-## Step 7: Write Memory Files
-
-Write the extracted (L0 + L1) data to these files:
-
-### USER.md (Identity + Skills + Career Summary)
+Write or update these **fixed sections only**. If USER.md already exists, update only the sections below. **Preserve all other content the user may have written.**
 
 ```markdown
 # Identity
@@ -244,148 +353,165 @@ Write the extracted (L0 + L1) data to these files:
 # Technical Skills
 
 ## Primary
-{top skills by frequency in experience/projects, comma-separated}
+{Skills appearing in 2+ experience/project entries, comma-separated}
 
 ## Secondary
-{remaining skills, comma-separated}
+{Remaining skills, comma-separated}
 
 # Career Summary
 
 {years_of_experience} years of experience in {primary domains}.
 
 ## Career Timeline
-{For each experience, chronologically:}
-- **{company}** — {title} ({start} - {end})
-  {description}
+{For each experience, reverse-chronologically:}
+- **{company}** · {team} — {title} ({start} - {end or Present})
+  {description, 1-2 lines max}
 
 # Education
 
+{For each entry:}
 - **{institution}** — {degree} in {field} ({start} - {end})
-  {notable achievements}
+  {achievements as sub-bullets}
 
 ---
-*Imported by claw-life-import on {current date} from {source}*
-*Confidence: {confidence score}*
+*Imported by claw-life-import on {YYYY-MM-DD} from {source}*
+*Confidence: {score}*
 ```
 
-### MEMORY.md (append a section)
+**Merge rules:**
+- Known sections: `# Identity`, `# Technical Skills`, `# Career Summary`, `# Education`. Update content within these sections.
+- Unknown sections (anything not in the list above): **DO NOT TOUCH**. Leave them exactly as they are.
+- If a section doesn't exist yet, append it before the `---` footer.
+- Always update the footer timestamp.
+
+### MEMORY.md — Source-tagged append
+
+Before appending, check if there's already a section with the same source tag. If so, **replace that section** instead of duplicating.
 
 ```markdown
-## Career Trajectory (imported {date})
+## Career Trajectory [source: {source_url_or_filename}] (imported {YYYY-MM-DD})
 
 {For each experience with highlights:}
 ### {company} · {title}
-{highlights as bullet points, with quantified metrics}
-Technologies: {technologies joined}
+{highlights as bullet points with metrics}
+Technologies: {technologies}
 
-## Technical Skill Landscape
-{skills.technical categorized by domain}
+## Technical Skill Landscape [source: {source}]
+{Skills grouped by domain}
 
-## Known Projects
+## Known Projects [source: {source}]
 {For each project:}
 - **{name}** ({role}): {description} [{technologies}]
 ```
 
-### memory/projects/{project-name}.md (one per project)
+**Merge rules:**
+- Each imported section gets a `[source: ...]` tag in the heading.
+- On re-import from the same source: replace the tagged sections.
+- On import from a different source: append new sections (don't touch existing ones).
+
+### memory/projects/{slug}.md — Stable slug naming
+
+Use a stable slug derived from project name: lowercase, hyphens for spaces, strip special chars.
+Example: "OpenClaw Contributor" → `memory/projects/openclaw-contributor.md`
 
 ```markdown
 # {Project Name}
 
 - **Role**: {role}
 - **Technologies**: {technologies}
+- **URL**: {url}
 
 ## Description
 {description}
 
 ## Key Achievements
-{highlights as bullet points}
+{highlights}
+
+---
+*Source: {source} | Imported: {YYYY-MM-DD}*
 ```
 
-### Writing Rules
-- If `USER.md` already exists, **MERGE** — update sections, don't overwrite unrelated content.
-- If `MEMORY.md` already exists, **APPEND** — add a new section with a date header.
-- For project files, **CREATE OR UPDATE** — match by project name.
+If the file already exists (same slug), **update** its content. Don't create duplicates.
 
 ---
 
-## Step 8: Generate Report
+## Scoring System
 
-After writing, present this report to the user:
+Compute **two separate scores**, not one blended number:
+
+### Score A: Profile Coverage (how complete is THIS import)
+
+Measures what percentage of extractable fields the source actually provided. This reflects the **source quality**, not memory gaps.
+
+| Field Group | Weight | Full marks if... |
+|-------------|--------|-----------------|
+| Identity (name, headline, location) | 20% | All 3 present |
+| Experience (with highlights + tech) | 30% | 2+ entries with highlights |
+| Education | 10% | 1+ entry with degree + field |
+| Skills (technical + domain) | 20% | 5+ technical, 1+ domain |
+| Projects | 20% | 1+ project with description |
+
+Score 0-100. This tells the user: "your resume covered X% of what I can learn from a resume."
+
+### Score B: Assistant Understanding (how well do I know you overall)
+
+Measures the total memory state across ALL sources. Read all memory files.
+
+| Category | Weight | What to look for in memory files |
+|----------|--------|--------------------------------|
+| Identity | 20% | Name, headline, location in USER.md |
+| Career & Skills | 25% | Experience entries + skill lists in USER.md and MEMORY.md |
+| Projects | 20% | Files in memory/projects/ |
+| Interests | 15% | Any mentions of hobbies, communities, reading lists |
+| Work Style | 10% | Communication preferences, tools, methodology |
+| Relationships | 10% | Colleagues, mentors, collaborators mentioned |
+
+Score 0-100. Categories not coverable by resume import (Interests, Work Style, Relationships) are scored based on what's actually in memory — if empty, that's fine, the score just reflects reality.
+
+### Display
 
 ```
-🧠 Resume Import Complete
+📊 Import Results
 
-Source: {source}
-Format: {format}
-Confidence: {confidence}
+Profile Coverage: ██████████████████░░ 87/100
+(This resume covered most extractable fields)
 
-📊 Extraction Summary
-├── Identity: {name}, {headline}
-├── Experience: {count} positions ({earliest} - {latest})
-├── Education: {count} entries
-├── Skills: {technical_count} technical, {domain_count} domain
-└── Projects: {count} projects
+Assistant Understanding: ███████████░░░░░░░░░ 54/100
+Before: 12 → After: 54 (+42)
 
-✅ Auto-written (L0 + L1): {count} fields
-⏭️ Skipped (L2 — opt-in): {count} fields
-🚫 Discarded (L3): {count} patterns
+  Identity        ████████░░ 80%
+  Career & Skills ████████░░ 78%
+  Projects        ██████░░░░ 60%
+  Interests       █░░░░░░░░░ 10%
+  Work Style      ░░░░░░░░░░  0%
+  Relationships   ░░░░░░░░░░  0%
 
-⚠️ Validation Warnings:
-{list any warnings}
-
-📊 Memory Score
-Before: {score_before}/100
-After:  {score_after}/100  (+{delta})
-
-{score_bar_visualization}
-
-💡 {suggestion based on score}
+💡 简历导入效果很好！低分项（兴趣、工作风格）需要其他数据源补充，
+   试试告诉我你平时的工作习惯和兴趣爱好。
 ```
 
-### Score Bar Visualization
-```
-████████████████░░░░ {score}/100
-
-Identity         {bar} {pct}%
-Skills           {bar} {pct}%
-Interests        {bar} {pct}%
-Work Style       {bar} {pct}%
-Projects         {bar} {pct}%
-Relationships    {bar} {pct}%
-Lifestyle        {bar} {pct}%
-```
-
-### Suggestions by score range:
-- < 30: "刚刚开始！试试导入更多数据源来让我更了解你。"
-- 30-60: "已有基本了解！导入浏览器书签可以帮助我了解你的兴趣。"
-- 60-80: "了解得不错！再补充一些工作风格偏好就更好了。"
-- > 80: "非常了解你了！记忆库已经很丰富。"
+Note: Low Interests/WorkStyle/Relationships scores after resume import are **expected and normal**. The suggestion should point the user to other data sources, not imply the import failed.
 
 ---
 
 ## Error Handling
 
-- If fetch fails: "无法访问 {url}。请检查网络连接或直接粘贴简历文本。"
-- If extraction produces empty result: "未能从内容中提取到有效信息。请确认这是一份简历或个人资料。"
-- If confidence < 0.5: Show a warning and ask user to review before writing.
-- If SPA detected (fetch returns < 200 chars): Try browser, then ask user to paste text.
+| Situation | Response |
+|-----------|----------|
+| web_fetch returns < 200 chars | Proceed to JS bundle extraction (Level 2) |
+| All fetch attempts fail | Ask user to paste text |
+| Extraction produces empty result | "未能提取到有效信息。请确认这是一份简历或个人资料。" |
+| Confidence < 0.50 | Show warning in preview, recommend user review carefully before confirming |
+| USER.md write conflict | Show diff of what will change, ask confirmation |
+| Network error | "网络请求失败，请检查连接或提供本地文件。" |
 
 ---
 
-## Memory Score Command
+## Important Constraints
 
-When user invokes `/claw_life_import score` or asks "what's my memory score" or "你有多了解我":
-
-1. Read USER.md, MEMORY.md, and memory/projects/*.md
-2. Score each of the 7 categories
-3. Display the visualization and suggestions
-4. Do NOT write any files
-
----
-
-## Important Notes
-
-- **Privacy First**: NEVER write L2+ fields without explicit user consent. ALWAYS scan for L3 patterns.
-- **Transparency**: Show exactly what will be written before writing. In dry-run mode, show everything but write nothing.
-- **Idempotent**: Running import twice on the same resume should not create duplicates. Merge intelligently.
-- **Language**: Respond in the same language as the user's message. If resume is in Chinese, keep extracted data in Chinese.
+1. **Preview-first**: NEVER write to memory files without user confirmation (unless `--apply` flag is used). This is a HARD constraint.
+2. **Privacy**: NEVER write L2b+ fields without explicit per-field or batch opt-in. ALWAYS scan for L3 patterns before extraction.
+3. **Preserve user content**: When merging USER.md, NEVER delete or modify sections you didn't create. Unknown sections are sacred.
+4. **Idempotent**: Re-importing the same source should update, not duplicate. Use source tags in MEMORY.md and stable slugs for project files.
+5. **Language**: Respond in the user's language. Keep extracted data in its original language.
+6. **No fabrication**: If a field is not in the source, leave it empty. Do not guess.
