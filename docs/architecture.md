@@ -1,134 +1,158 @@
 # Clawsight Technical Architecture
 
-## Pure Skill Architecture
+> Internal reference for contributors and Scene Skill developers.
 
-Clawsight is a **Pure Skill** — the entire product logic lives in `SKILL.md`, a ~25KB markdown file interpreted by the OpenClaw AI agent at runtime. There is no compiled code, no npm dependencies, no external runtime.
+## System Overview
 
-```
-┌─────────────────────────────────────────────────┐
-│                  OpenClaw Agent                  │
-│  ┌───────────────────────────────────────────┐  │
-│  │            SKILL.md (Clawsight)           │  │
-│  │  ┌─────────┐  ┌──────────┐  ┌─────────┐  │  │
-│  │  │ Step 1-3│→ │Step 3.5 ★│→ │Step 4-7 │  │  │
-│  │  │  Import │  │Reconcile │  │  Write   │  │  │
-│  │  └─────────┘  └──────────┘  └─────────┘  │  │
-│  └───────────────────────────────────────────┘  │
-│                                                 │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │ USER.md  │  │MEMORY.md │  │ projects/*.md│  │
-│  └──────────┘  └──────────┘  └──────────────┘  │
-└─────────────────────────────────────────────────┘
-         ↑               ↑              ↑
-    web_fetch       file_read      file_write
-    (GitHub API)    (local files)  (memory files)
-```
-
-### Why Pure Skill?
-
-| Approach | Install | Dependencies | Maintenance | Distribution |
-|----------|---------|-------------|-------------|-------------|
-| CLI tool (v0.1.x) | `npm install` | Node.js, 50+ packages | Update npm, fix CVEs | npm registry |
-| **Pure Skill (v0.3)** | `clawhub install` | None | Update SKILL.md | ClawHub |
-
-The AI agent already has all capabilities needed: web fetching, file I/O, text parsing, structured reasoning. SKILL.md provides the *instructions*, not the *implementation*.
-
-## Seven-Step Pipeline
-
-### Step 1: Identify Sources
-- Read existing USER.md / MEMORY.md for baseline
-- Detect input type (URL, file, text)
-- Route to appropriate source handler
-
-### Step 2: Fetch
-- 5-level fallback chain for websites (direct → JS bundle → alt pages → browser → user)
-- GitHub API: 4 endpoints (profile, repos, README, events)
-- PDF: text extraction via available tools
-- Privacy-safe: no scraping of protected content (LinkedIn)
-
-### Step 3: Parse & Normalize
-- Extract to canonical schema (identity, experience, education, skills, projects, behavioral_signals)
-- Provenance tagging: every fact carries `[source: type] [date: timestamp] [confidence: level]`
-
-### Step 3.5: Cross-Source Reconciliation ★
-This is the core innovation. See below.
-
-### Step 4: Validate
-- Schema checks (block on critical errors)
-- Semantic checks (warn on anomalies)
-- Confidence adjustment based on validation results
-
-### Step 5: Privacy Preview
-- 5-level privacy classification (L0 Public → L3 Extreme)
-- User confirmation required before any write
-- Conflict resolution UI for factual disagreements
-
-### Step 6: Write & Report
-- Section-based merge for USER.md (preserve user-written content)
-- Source-tagged append for MEMORY.md (idempotent re-import)
-- Stable-slug project files
-
-### Step 7: Insight & Potential (On-Demand)
-- Cross-source insight generation
-- Compound advantage × industry trend mapping
-
-## Cross-Source Reconciliation Engine (Step 3.5)
-
-### Five Conflict Types
-
-| Type | Auto-Resolve Rule |
-|------|------------------|
-| Factual | Never auto-resolve → escalate to user |
-| Temporal | Gap ≤ 3 months → use longer range |
-| Emphasis | Always auto → record both framings |
-| Omission | Always auto → keep with lower confidence |
-| Granularity | Always auto → use more detailed version |
-
-### Source-Domain Trust Matrix
+Clawsight is an **OpenClaw Pure Skill** — it runs entirely through SKILL.md instructions interpreted by the AI agent. No external runtime, no dependencies, no compiled code.
 
 ```
-Trust Weight:
-  Behavioral (GitHub)   = 0.9  → What you actually DO
-  Declarative (Resume)  = 0.7  → What you SAY you do
-  Inferred (Analysis)   = 0.5  → What we DEDUCE
-
-Domain Specialization:
-  Tech skills    → GitHub > Resume > LinkedIn
-  Career story   → Resume > LinkedIn > GitHub
-  Working style  → GitHub events > all others
-  Soft skills    → LinkedIn recs > Resume
-  Impact metrics → Resume > all others
+┌─────────────────────────────────────────────────────────┐
+│                    User Interface                        │
+│  /clawsight <source>  │  /clawsight insight/potential   │
+│  /clawsight refresh   │  /clawsight score               │
+└──────────────┬────────────────────────┬─────────────────┘
+               │                        │
+    ┌──────────▼──────────┐  ┌──────────▼──────────┐
+    │   Import Pipeline   │  │  Intelligence Layer  │
+    │   Steps 1-6         │  │  Steps 7-8           │
+    │                     │  │                      │
+    │  1. Identify Source  │  │  7a. Insight Report  │
+    │  2. Fetch            │  │  7b. Potential Disc. │
+    │  3. Parse & Norm.    │  │  8. Dialogue Enrich. │
+    │  3.5. Reconciliation │  │                      │
+    │  4. Validate         │  └──────────┬───────────┘
+    │  5. Privacy Preview  │             │
+    │  6. Write & Report   │             │
+    └──────────┬───────────┘             │
+               │                         │
+    ┌──────────▼─────────────────────────▼──────────┐
+    │              Memory Layer (Files)               │
+    │                                                 │
+    │  USER.md          — Identity & career summary   │
+    │  MEMORY.md        — Detailed evidence & insights│
+    │  memory/projects/ — Per-project deep files      │
+    └──────────┬─────────────────────────────────────┘
+               │
+    ┌──────────▼──────────────────────────────────┐
+    │           Scene Skill Ecosystem              │
+    │                                              │
+    │  career-mirror  — Career direction analysis  │
+    │  tech-compass   — Technology roadmap         │
+    │  writing-voice  — Authentic voice writing    │
+    │  learning-path  — Personalized learning      │
+    │  stakeholder-briefer — Quick context briefs  │
+    └──────────────────────────────────────────────┘
 ```
 
-### Confidence Model
+## Pipeline Detail
+
+### Import Pipeline (Steps 1-6)
+
+Responsible for fetching external data, parsing, reconciling across sources, and writing to memory.
+
+**Step 3.5: Cross-Source Reconciliation** is the core differentiator:
 
 ```
-confidence = base_weight(source_type)
-           + 0.10 × corroborating_sources
-           - 0.15 × contradicting_higher_trust_sources
-           - 0.05 × validation_warnings
-
-clamp(confidence, 0.0, 1.0)
+Source A (Resume)  ──┐
+                     ├──→ Fact Alignment ──→ Conflict Detection ──→ Resolution
+Source B (GitHub)  ──┤        │                    │
+                     │    Map equivalent       5 types:
+Source C (LinkedIn)──┘    facts across        factual, temporal,
+                          sources             emphasis, omission,
+                                              granularity
+                                                   │
+                                          ┌────────┴────────┐
+                                          │                 │
+                                     Auto-resolve     Escalate to user
+                                     (4 of 5 types)   (factual only)
+                                          │
+                                    Record decisions
+                                    in Cross-Source Notes
 ```
 
-### Contradictions as Insights
-
-The key innovation: conflicts between sources aren't just problems — they reveal hidden patterns about the user. A gap between what someone *says* (resume) and what they *do* (GitHub) often contains the most valuable career insights.
-
-## Three-Layer Intelligence Model
-
+**Trust Hierarchy:**
 ```
-Layer 3: Potential (潜力发掘)
-  Compound advantages × industry trends
-  "Where could you go?"
-         ↑
-Layer 2: Insight (当下洞察)
-  Cross-source contradictions → hidden patterns
-  "What can't you see about yourself?"
-         ↑
-Layer 1: Profile (画像构建)
-  Multi-source import + normalization
-  "Who are you right now?"
+Behavioral (what you DO)     — weight 0.9  — GitHub commits, patterns
+Declarative (what you SAY)   — weight 0.7  — Resume, LinkedIn, website
+Inferred (what we DEDUCE)    — weight 0.5  — Cross-referencing patterns
 ```
 
-Each layer builds on the one below. Layer 1 is always required. Layer 2 activates with 2+ sources. Layer 3 is on-demand.
+### Intelligence Layer (Steps 7-8)
+
+**Step 7a — Insight Report** generates 5 insight types:
+1. Hidden Strengths — visible only through cross-source analysis
+2. Behavioral-Declarative Gaps — what you DO vs what you SAY
+3. Blind Spots — missing from self-presentation but evidenced elsewhere
+4. Compound Advantages — rare skill/domain combinations
+5. Evolution Signals — trajectory momentum and direction changes
+
+**Step 7b — Potential Discovery** maps advantages against trends:
+1. Search industry trends for user's domains
+2. Map compound advantages against market demand
+3. Identify opportunity gaps (high-demand skills adjacent to expertise)
+4. Generate Potential Vectors report
+
+**Step 8 — Dialogue Enrichment** (passive, v0.5):
+- Detects new user info in normal conversations
+- Non-intrusive: suggests updates only after current task completes
+- Lightweight: updates only relevant sections
+
+### Refresh Pipeline (`/clawsight refresh`, v0.4)
+
+```
+Enumerate stored sources (from [source:] tags)
+    │
+    ├── Staleness check (>90 days → flag)
+    │
+    ├── Re-fetch each source
+    │
+    ├── Diff against stored data
+    │
+    ├── Profile evolution tracking
+    │   └── Record changes: tech shifts, new projects, activity changes
+    │
+    └── Update with confirmation
+```
+
+## Data Flow: Source → Memory → Scene Skill
+
+```
+External Sources              Memory Files              Scene Skills
+─────────────────    ──→     ──────────────    ──→     ────────────
+Resume (PDF/text)            USER.md                   career-mirror
+GitHub profile               ├─ Identity               tech-compass
+LinkedIn export              ├─ Technical Skills        writing-voice
+Personal website             ├─ Career Summary          learning-path
+JSON Resume                  └─ Education               stakeholder-briefer
+                             
+                             MEMORY.md
+                             ├─ Career Trajectory
+                             ├─ Technical Landscape
+                             ├─ Known Projects
+                             ├─ Cross-Source Insights
+                             ├─ Cross-Source Notes
+                             └─ Profile Evolution Log
+                             
+                             memory/projects/*.md
+```
+
+## Scene Skill Protocol
+
+Scene Skills consume Clawsight profile data. Design principles:
+
+1. **Graceful degradation**: Works without profile (Lite Mode), better with it (Rich Mode)
+2. **Read-only**: Scene Skills read USER.md/MEMORY.md but never write to them
+3. **Independent**: Each Scene Skill is a standalone SKILL.md, installable separately
+4. **Cross-referral**: Each Scene Skill recommends installing Clawsight for deeper analysis
+5. **Feedback loop**: If a Scene Skill discovers missing profile dimensions, it suggests the user update via Clawsight
+
+## File Size Budget
+
+| File | Target | Purpose |
+|------|--------|---------|
+| SKILL.md | < 19KB | Core pipeline (OpenClaw limit) |
+| docs/schema.md | ~4KB | Canonical extraction schema |
+| docs/scoring.md | ~3KB | Scoring methodology |
+| docs/templates.md | ~8KB | Output templates |
+| Scene Skill SKILL.md | < 6KB each | Focused, single-purpose |

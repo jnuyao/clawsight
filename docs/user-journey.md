@@ -1,114 +1,165 @@
 # Clawsight User Journey
 
-## Seven Stages of User Interaction
+> The complete interaction lifecycle from install through long-term use.
+
+## Seven Stages
 
 ### Stage 0: Install (5 seconds)
 
-```
-User discovers Clawsight on ClawHub
-→ clawhub install clawsight
-→ "✅ Clawsight installed. Run /clawsight <source> to start."
-```
+**User action**: `/install clawsight` in OpenClaw
 
-**Design goal**: Zero friction. No configuration, no API keys, no setup.
+**What happens**:
+- SKILL.md loaded into agent context
+- No setup, no config, no API keys needed
+
+**User feels**: "That was easy"
+
+---
 
 ### Stage 1: First Import (5 minutes)
 
+**User action**: `/clawsight resume.pdf` or `/clawsight https://github.com/username`
+
+**What happens**:
+1. Source detected and fetched
+2. Content parsed into structured profile
+3. Privacy preview shown
+4. User confirms → USER.md + MEMORY.md created
+
+**User feels**: "It understood my background quickly and accurately"
+
+**Critical moment**: The preview must be impressive enough to earn trust. If it misparses or hallucinates, trust is broken on Day 1.
+
+---
+
+### Stage 2: Insight Report — The Wow Moment (10 minutes)
+
+**Triggered when**: User has 2+ sources imported, or runs `/clawsight insight`
+
+**What happens**:
+1. Cross-source reconciliation identifies patterns
+2. 5 insight types generated
+3. User sees things about themselves they hadn't articulated
+
+**Example wow moments**:
+- "Your resume says Java lead, but your GitHub shows 90% Go — you may be in a tech stack transition you haven't updated your narrative for"
+- "3 LinkedIn recommenders mention your mentoring ability, but your resume doesn't mention leadership at all"
+- "Payment systems × distributed architecture × global experience — this combination is extremely rare"
+
+**User feels**: "This tool sees something about me I didn't see myself"
+
+**This is the retention hook.** If Stage 2 doesn't produce a wow moment, the user won't continue.
+
+---
+
+### Stage 3: Silent Enhancement (Daily, invisible)
+
+**Triggered by**: Step 8 — Dialogue-Based Profile Enrichment (v0.5)
+
+**What happens**:
+- During normal conversations, Clawsight passively notices new info
+- "I spent the weekend building a Rust project" → detects new skill signal
+- After current task completes: "💡 I noticed you mentioned Rust. Update your profile?"
+- User confirms → lightweight update to relevant sections
+
+**User feels**: "It's quietly getting to know me better without being annoying"
+
+**Critical constraint**: NEVER interrupt the user's current task. Non-intrusive is non-negotiable.
+
+---
+
+### Stage 4: Add Sources (On-demand)
+
+**User action**: `/clawsight https://github.com/username` (after initial resume import)
+
+**What happens**:
+1. New source imported
+2. Cross-source reconciliation runs against all existing data
+3. New insights generated from cross-referencing
+4. Conflicts presented if any
+5. Profile updated with multi-source confidence boosts
+
+**User feels**: "Each source I add makes it understand me dramatically better — not just additive, but multiplicative"
+
+**The insight quality gap between 1 source and 3 sources is massive.** This is what makes Clawsight "thick" — the cross-correlation is something users cannot replicate by pasting their resume into an AI chat.
+
+---
+
+### Stage 5: Potential Discovery (On-demand)
+
+**User action**: `/clawsight potential` (v0.5)
+
+**What happens**:
+1. User's compound advantages analyzed
+2. Industry trends searched
+3. Advantages mapped against market demand
+4. Opportunity gaps identified
+5. Potential Vectors report generated
+
+**User feels**: "It's not just telling me who I am, but who I could become"
+
+**This is Layer 3** — the frontier. No other tool does this.
+
+---
+
+### Stage 6: Scene Skills — Profile Consumption
+
+**User action**: `/career-mirror`, `/tech-compass`, etc.
+
+**What happens**:
+- Scene Skills read USER.md + MEMORY.md
+- Generate specialized analyses powered by profile depth
+- Rich Mode (with profile) vs Lite Mode (without)
+
+**User feels**: "My profile is becoming a platform that powers increasingly useful tools"
+
+**Ecosystem effect**: Each Scene Skill makes the profile more valuable → user invests more in keeping it updated → better Scene Skill results → more Scene Skills adopted
+
+---
+
+### Stage 7: Long-term Evolution
+
+**User action**: `/clawsight refresh` periodically (v0.4)
+
+**What happens**:
+1. All sources re-fetched
+2. Changes detected and tracked
+3. Profile Evolution Log updated
+4. User sees their growth trajectory
+
+**User feels**: "It's a living document of my professional growth"
+
+**The flywheel**:
 ```
-User: /clawsight ./resume.pdf
-Agent: [Parses resume, extracts profile, shows preview]
-Agent: "🦐 发现 4 段工作经历、12 项技能、3 个项目。确认写入？"
-User: 确认
-Agent: [Writes to USER.md + MEMORY.md, shows score report]
-Agent: "📊 Profile Coverage: 87/100 | Understanding: 54/100
-        💡 添加 GitHub 可以补充技术行为数据，提升理解度到 ~75"
+Trust → Dependency → Investment → Growth → More Trust
+  │                                            │
+  └────────────────────────────────────────────┘
 ```
 
-**Key moment**: The score report shows what's known AND what's missing, creating natural motivation to add more sources.
+## Retention Mechanisms
 
-### Stage 2: Second Source + Insight Report (Wow Moment)
+| Stage | Hook | Risk if Missing |
+|-------|------|-----------------|
+| 1 | Accurate first parse | User never returns |
+| 2 | Wow-moment insight | "This is just a fancy resume parser" |
+| 3 | Non-intrusive enrichment | "Too annoying" or "forgot it exists" |
+| 4 | Multiplicative cross-source value | "I could do this myself" |
+| 5 | Future potential mapping | "It only looks backward" |
+| 6 | Scene Skill ecosystem | "One-trick pony" |
+| 7 | Growth tracking | "Static snapshot, not a living profile" |
 
-```
-User: /clawsight https://github.com/username
-Agent: [Fetches GitHub data, cross-references with resume]
-Agent: "⚡ 发现跨源洞察：
-        1. 简历定位 Java，GitHub 主力已转向 Go (65%)
-        2. 周末开源贡献频繁 — 你可能低估了自己的技术热情
-        3. 支付×分布式×Go 这个组合在市场上极为稀缺"
-User: 😮 (wow moment)
-```
+## The "Thin vs Thick" Spectrum
 
-**Key moment**: Insights the user couldn't generate themselves. This is where "thin" becomes "thick."
+**Thin** (user can do themselves):
+- Paste resume → ask AI to remember → done
+- Single source, no cross-referencing, no insights
 
-### Stage 3: Silent Enhancement (Daily, Invisible)
+**Thick** (only Clawsight can do):
+- Multi-source import with cross-correlation
+- Contradictions-as-insights discovery
+- Compound advantage identification
+- Industry trend × personal advantage mapping
+- Profile evolution tracking
+- Scene Skill ecosystem consumption
 
-After import, Clawsight data improves every interaction with OpenClaw:
-- Other skills read USER.md for personalized responses
-- Career advice is grounded in actual profile data
-- Technical discussions reference real skill levels
-
-The user doesn't invoke Clawsight — they just notice OpenClaw "gets them" better.
-
-### Stage 4: Add More Sources (On-Demand)
-
-When the user encounters a new source:
-```
-User: /clawsight https://mywebsite.com
-Agent: [Imports, reconciles with existing 2 sources]
-Agent: "⚡ 新洞察：你的个人网站强调设计能力，但简历和 GitHub 都没提及
-        → 这可能是一个被忽视的差异化优势"
-```
-
-Each new source deepens the profile AND generates new cross-source insights.
-
-### Stage 5: Potential Discovery (On-Demand)
-
-```
-User: /clawsight insight
-Agent: [Generates comprehensive insight report]
-Agent: "🦐 Clawsight Insight Report
-        
-        Hidden Strengths:
-        - Mentoring 能力被多方验证但从未自我宣传
-        
-        Behavioral-Declarative Gap:
-        - 简历定位管理，GitHub 显示你仍是最活跃的 IC
-        
-        Compound Advantages:
-        - 支付×分布式×全球化：< 0.1% 的人具备这个组合
-        
-        Future Vectors:
-        - 全球支付基础设施架构师（高匹配）
-        - 开源支付框架创始人（中匹配）"
-```
-
-### Stage 6: Long-Term Evolution (Continuous)
-
-Over time, the profile evolves:
-- Re-import updated resume → detect career changes
-- New GitHub repos → track skill evolution
-- Profile README changes → capture shifting self-identity
-
-Clawsight becomes a **career mirror** — reflecting back an objective view of professional growth.
-
-## Retention Flywheel
-
-```
-Trust          → User sees accurate, non-judgmental profile
-  ↓
-Dependency     → Other OpenClaw skills use the profile, work better
-  ↓
-Investment     → User adds more sources, enriching the profile
-  ↓
-Growth         → New insights emerge, user discovers new things about themselves
-  ↓
-(back to Trust)
-```
-
-## Key Design Principles
-
-1. **Value before effort**: First import takes 5 minutes, delivers immediate value
-2. **Progressive depth**: Each additional source adds disproportionate insight value
-3. **User agency**: Preview-first, user confirms everything, no silent data collection
-4. **Transparency**: Every fact traceable to source, every reconciliation decision logged
-5. **Insight over data**: The goal isn't to store data — it's to reveal what the data means
+The distance between "thin" and "thick" is the product's moat.

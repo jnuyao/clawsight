@@ -28,31 +28,23 @@ Your mission has three layers:
 Activate when the user:
 - Uses `/clawsight <source>` with a file path, URL, or pasted text
 - Uses `/clawsight insight` to generate a cross-source insight report
+- Uses `/clawsight potential` to generate a potential vectors report
+- Uses `/clawsight refresh` to re-fetch and diff all previously imported sources
 - Uses `/clawsight score` to check current profile completeness
 - Says "import my resume", "导入我的简历", "import my profile", "analyze my profile"
 - Provides a resume, GitHub URL, or other profile data and asks to "remember" or "learn about me"
 
-## Pipeline (7 Steps)
+## Pipeline Overview
 
 ```
-Step 1: Identify Sources
-  │
-Step 2: Fetch
-  │
-Step 3: Parse & Normalize
-  │
-Step 3.5: Cross-Source Reconciliation  ★ Core Differentiator
-  │
-Step 4: Validate
-  │
-Step 5: Privacy Preview
-  │
-Step 6: Write & Report
-  │
-Step 7: Insight & Potential Discovery (optional, on-demand)
+Step 1: Identify Sources → Step 2: Fetch → Step 3: Parse & Normalize
+  → Step 3.5: Cross-Source Reconciliation ★
+  → Step 4: Validate → Step 5: Privacy Preview → Step 6: Write & Report
+  → Step 7: Insight & Potential Discovery (on-demand)
+  → Step 8: Dialogue-Based Profile Enrichment (passive, ongoing)
 ```
 
-Default behavior is **preview mode**: show what will be written, wait for user confirmation before writing anything. Use `--apply` to skip confirmation.
+Default behavior is **preview mode**: show what will be written, wait for user confirmation. Use `--apply` to skip confirmation.
 
 ---
 
@@ -60,13 +52,7 @@ Default behavior is **preview mode**: show what will be written, wait for user c
 
 ### 1a: Check Current State
 
-Read existing memory files to establish baseline:
-- `USER.md` in workspace root
-- `MEMORY.md` in workspace root
-- `memory/projects/*.md`
-
-Record existing sources (look for `[source: ...]` tags in MEMORY.md).
-Compute `score_before` (see Scoring System).
+Read existing `USER.md`, `MEMORY.md`, and `memory/projects/*.md`. Record existing `[source: ...]` tags. Compute `score_before` (see `@docs/scoring.md`).
 
 ### 1b: Route Input to Source Type
 
@@ -75,6 +61,7 @@ Compute `score_before` (see Scoring System).
 | `*.pdf` | Extension | `source_resume_pdf` |
 | `*.json` with `basics.name` | JSON structure | `source_json_resume` |
 | `*.json` with `positions` | JSON structure | `source_linkedin_export` |
+| `*.zip` from LinkedIn | Contains `recommendations.json` | `source_linkedin_zip` |
 | `*.txt` or `*.md` | Extension | `source_plain_text` |
 | URL containing `github.com` | URL pattern | `source_github` |
 | URL containing `linkedin.com` | URL pattern | `source_linkedin` (guide export) |
@@ -83,133 +70,79 @@ Compute `score_before` (see Scoring System).
 
 ### 1c: Multi-Source Detection
 
-If this is NOT the first import (existing `[source: ...]` tags found), note the previous sources. After completing import of the new source, Step 3.5 will automatically trigger cross-source reconciliation.
+If previous `[source: ...]` tags exist, note them. After importing the new source, Step 3.5 auto-triggers cross-source reconciliation.
 
 ---
 
 ## Step 2: Fetch
 
-Retrieve raw content from the identified source.
-
 ### source_website
 
 Personal sites vary wildly. Follow this **fallback chain strictly in order**:
 
-**Level 1: Direct fetch**
-```
-Use web_fetch on the URL.
-Check: does the response contain > 200 characters of meaningful text (after stripping HTML)?
-If YES → use this content, proceed to Step 3.
-```
+1. **Direct fetch** — `web_fetch` the URL. If >200 chars of meaningful text after stripping HTML, use it.
+2. **JS bundle extraction** — If Level 1 returned an SPA shell, fetch `<script src>` JS files and search for embedded data objects (JSON with resume-like fields, data/resume/profile variables).
+3. **Alternative pages** — Try `/resume`, `/cv`, `/about`, `/api/resume`, `/resume.json`, `/sitemap.xml`.
+4. **Browser rendering** — If browser capability available, navigate, wait for render, extract visible text.
+5. **User fallback** — Ask user to paste text, provide an API URL, or export as PDF.
 
-**Level 2: JS bundle data extraction**
-```
-If Level 1 returned mostly empty HTML (SPA shell):
-1. Look for <script src="..."> tags in the HTML.
-   Common patterns: /static/js/main.*.js, /_next/static/chunks/app*.js, /assets/index*.js
-2. Fetch those JS files with web_fetch.
-3. Search the JS content for embedded data objects:
-   - JSON blocks with resume-like fields (name, experience, education)
-   - Large string literals containing resume text
-   - Data objects assigned to variables like `data`, `resume`, `profile`, `content`
-4. Extract the data and use it as the source text.
-```
-
-**Level 3: Alternative pages**
-```
-Try common sub-paths: /resume, /cv, /about, /api/resume, /resume.json, /sitemap.xml
-If any returns meaningful content, use it.
-```
-
-**Level 4: Browser rendering**
-```
-If a browser-like capability is available (browser, canvas, puppeteer, etc.):
-1. Navigate to the URL
-2. Wait for rendering to complete
-3. Extract the visible text content
-```
-
-**Level 5: User fallback**
-```
-"这个网站是 JavaScript 渲染的，我无法自动提取内容。请用以下任一方式提供：
-1. 在浏览器中打开网站，全选复制文本，粘贴给我
-2. 如果网站有 /resume.json 或 API 接口，提供该 URL
-3. 导出为 PDF 后发给我"
-```
-
-**Anti-noise rules for web content:**
-- Strip navigation bars, footers, cookie banners, social media links
-- Remove repeated header/footer text that appears on every section
-- Filter out: "Home", "About", "Contact", "Back to top", "Copyright ©", cookie consent
-- Use section headings (Experience, Education, Skills, Projects) as extraction anchors
+**Anti-noise**: Strip nav bars, footers, cookie banners, social links. Use section headings (Experience, Education, Skills, Projects) as extraction anchors.
 
 ### source_github
 
-Fetch these endpoints with web_fetch (no auth needed for public profiles):
+Fetch these public endpoints (no auth needed):
 
-```
-1. https://api.github.com/users/{username}
-   → name, bio, location, blog, created_at, public_repos, followers
+1. `api.github.com/users/{username}` → name, bio, location, blog, created_at, public_repos, followers
+2. `api.github.com/users/{username}/repos?sort=stars&per_page=30` → top repos with language, stars, topics, pushed_at
+3. `raw.githubusercontent.com/{username}/{username}/main/README.md` → profile README (may 404)
+4. `api.github.com/users/{username}/events/public?per_page=100` → recent activity events
 
-2. https://api.github.com/users/{username}/repos?sort=stars&per_page=30
-   → top repos: name, description, language, stargazers_count, fork, topics, pushed_at
+**Extract from repos**: Language distribution (weighted by stars), domain signals from topics/descriptions, active vs archived classification, fork ratio, star counts.
 
-3. https://raw.githubusercontent.com/{username}/{username}/main/README.md
-   → profile README (may 404, OK)
+**Extract from events**: Activity recency, contribution rhythm (weekday/weekend), collaboration signals (PRs to others' repos).
 
-4. https://api.github.com/users/{username}/events/public?per_page=100
-   → recent activity: PushEvent, PullRequestEvent, IssuesEvent, CreateEvent
-```
+**Behavioral Pattern Analysis** (v0.4): Derive work patterns from events data:
+- **Coding schedule**: Classify as morning-coder / night-owl / business-hours / mixed based on commit timestamps
+- **Consistency score**: 0.0–1.0 measuring regularity of contributions over trailing 90 days
+- **Collaboration ratio**: 0.0–1.0 measuring PRs/issues on others' repos vs own repos
 
-**GitHub-specific extraction:**
+These behavioral signals feed into Step 7a insights (Behavioral-Declarative Gaps).
 
-From repos:
-- **Language distribution**: Count repos by primary language, weight by stars
-- **Domain signals**: Infer domains from repo topics, descriptions, and README keywords
-- **Contribution pattern**: `pushed_at` timestamps → active/archived classification
-- **Open source engagement**: Fork ratio, repos with significant stars
+**Extract from profile README**: Self-description, tech stack badges (parse badge URLs for tech names).
 
-From events:
-- **Activity recency**: Date of most recent push
-- **Contribution rhythm**: Weekday vs weekend activity, frequency
-- **Collaboration signals**: PRs to others' repos, issue participation
-
-From profile README:
-- **Self-description**: Extract any personal statements, current focus, interests
-- **Tech stack badges**: Parse badge URLs for technology names
-
-Confidence: 0.70 baseline (GitHub lacks career narrative context).
+Confidence: 0.70 baseline.
 
 ### source_json_resume
 
-Standard [JSON Resume](https://jsonresume.org) format. Direct 1:1 field mapping.
-Confidence: 0.95 baseline.
+Standard [JSON Resume](https://jsonresume.org) format. Direct 1:1 field mapping. Confidence: 0.95.
+
+### source_linkedin_zip (v0.4)
+
+LinkedIn export ZIP file. Parse:
+- `positions.json` → experience (`positionList`)
+- `educations.json` → education (`educationList`)
+- `skills.json` → skills (`skillList`)
+- **`recommendations.json`** → third-party endorsements
+
+**Recommendations parsing**: Extract recommender name, relationship (Manager/Colleague/Report/Client), and key themes from each recommendation. Summarize recurring themes (e.g., "3/5 recommenders mention mentoring"). These feed into insight generation — cross-reference against resume to find omissions (e.g., "3 recommenders mention mentoring, but resume doesn't highlight leadership").
+
+Confidence: 0.90 baseline.
 
 ### source_linkedin_export
 
-LinkedIn JSON export: `positions.positionList` → experience, `educations.educationList` → education, `skills.skillList` → skills.
-Confidence: 0.90 baseline.
+LinkedIn JSON export (single file, no recommendations). Same field mapping as above minus recommendations. Confidence: 0.90.
 
 ### source_linkedin (URL — guide export)
 
-Do NOT scrape. Tell the user:
-> LinkedIn 无法直接抓取（反爬 + ToS）。请手动导出：
-> 1. LinkedIn → Settings → Data Privacy → Get a copy of your data
-> 2. 选择 "Profile"，下载 ZIP
-> 3. 解压后运行：`/clawsight ./linkedin-export.json`
+Do NOT scrape. Tell user to export via LinkedIn Settings → Data Privacy → Get a copy of your data → select "Profile" → download ZIP → `/clawsight ./linkedin-export.zip`.
 
 ### source_resume_pdf
 
-Use available tools to extract text from PDF. After extraction, split into sections by heading patterns.
-Confidence: 0.80 baseline.
+Extract text from PDF using available tools. Split into sections by heading patterns. Confidence: 0.80.
 
 ### source_plain_text
 
-Use the text directly. Split into sections by common resume heading patterns:
-- English: Experience, Education, Skills, Projects, Summary, Objective, Certifications
-- Chinese: 工作经历, 教育背景, 技能, 项目经历, 个人简介, 自我评价
-
-Confidence: 0.75 baseline.
+Use text directly. Split by heading patterns (EN: Experience, Education, Skills, Projects, Summary; ZH: 工作经历, 教育背景, 技能, 项目经历, 个人简介). Confidence: 0.75.
 
 ---
 
@@ -217,288 +150,88 @@ Confidence: 0.75 baseline.
 
 ### 3a: Extract Structured Fields
 
-From the fetched content, extract into this schema. **Only extract what is explicitly stated. Do NOT infer or fabricate.**
+Extract into the canonical schema (see `@docs/schema.md` for full spec). Key fields: identity, experience, education, skills, projects, behavioral_signals, recommendations, evolution.
 
-```json
-{
-  "source_type": "github | resume_pdf | website | json_resume | linkedin | plain_text",
-  "source_url": "original URL or file path",
-  "extraction_time": "ISO 8601 timestamp",
-  "identity": {
-    "name": "Full name",
-    "headline": "Professional title / one-line summary",
-    "location": "City, Country",
-    "contact": {
-      "email": "if explicitly shown",
-      "phone": "if explicitly shown",
-      "github": "GitHub URL",
-      "linkedin": "LinkedIn URL",
-      "website": "Personal site URL"
-    }
-  },
-  "experience": [{
-    "company": "Company name",
-    "title": "Job title / role",
-    "team": "Team or department (if mentioned)",
-    "start": "YYYY-MM",
-    "end": "YYYY-MM or null if current",
-    "description": "Role summary",
-    "highlights": ["Quantified achievement with numbers"],
-    "technologies": ["Specific tech: React, Go, PostgreSQL"]
-  }],
-  "education": [{
-    "institution": "School name",
-    "degree": "Degree type",
-    "field": "Field of study",
-    "start": "YYYY-MM",
-    "end": "YYYY-MM",
-    "achievements": ["Awards, scholarships, honors"]
-  }],
-  "skills": {
-    "technical": ["Languages, frameworks, tools, platforms"],
-    "domain": ["Business domains: payments, ads, marketing, analytics"],
-    "soft": ["Leadership, communication, etc."],
-    "certifications": ["Formal certifications"]
-  },
-  "projects": [{
-    "name": "Project name",
-    "role": "Your role",
-    "description": "What the project does",
-    "technologies": ["Tech used"],
-    "url": "URL if available",
-    "stars": "GitHub stars if applicable",
-    "is_fork": false
-  }],
-  "behavioral_signals": {
-    "contribution_pattern": "weekday-heavy | weekend-active | consistent",
-    "language_distribution": {"Go": 0.65, "Python": 0.25},
-    "activity_recency": "YYYY-MM-DD of last activity",
-    "open_source_engagement": "high | medium | low | none"
-  }
-}
-```
-
-**Extraction rules:**
-1. Dates → ISO `YYYY-MM`. Only year → `YYYY-01`. "至今"/"present"/"current" → `null` for end.
-2. Highlights → quantified where possible: "Reduced latency 171min → 105min (-39%)".
-3. Technologies → specific names, not categories.
-4. Keep original language. Chinese resume → Chinese output.
-5. Same company, different roles → separate experience entries.
-6. `behavioral_signals` only populated from GitHub source type.
+**Only extract what is explicitly stated. Do NOT infer or fabricate.**
 
 ### 3b: Provenance Tagging
 
-Every extracted fact carries provenance:
-
-```
-[source: {source_type}] [date: {extraction_time}] [confidence: {high|medium|low}]
-```
-
-Confidence assignment:
-- **high**: Explicitly stated in source (e.g., job title in resume header)
-- **medium**: Inferred from context (e.g., skill derived from project description)
-- **low**: Ambiguous or partial information
+Every extracted fact carries: `[source: {type}] [date: {time}] [confidence: {high|medium|low}]`
 
 ---
 
 ## Step 3.5: Cross-Source Reconciliation ★
 
-**This step is the core differentiator.** It only activates when data from 2+ sources exists (either from this import session or from previously stored `[source: ...]` entries in MEMORY.md).
+Activates when data from 2+ sources exists (current session or previous `[source: ...]` entries in MEMORY.md).
 
 ### 3.5a: Fact Alignment
 
-Map equivalent facts across sources:
+Map equivalent facts across sources by: identity (name/location), experience (company + overlapping dates), skills (normalized name), projects (name or repo URL).
 
-| Fact Type | Alignment Key | Example |
-|-----------|---------------|---------|
-| Identity | name, location | "Yao Hong" (resume) ↔ "yaohom" (GitHub) |
-| Experience | company + overlapping dates | ByteDance 2020-2023 (resume) ↔ commits to bytedance/* repos (GitHub) |
-| Skills | normalized skill name | "Golang" (resume) ↔ "Go" (GitHub language stats) |
-| Projects | project name or repo URL | "Payment Gateway" (resume) ↔ payment-gateway repo (GitHub) |
+### 3.5b: Conflict Classification & Resolution
 
-### 3.5b: Conflict Detection
+| Type | Example | Auto-Resolve? |
+|------|---------|---------------|
+| **Factual** | Resume says "Java lead", GitHub shows 90% Go | No — escalate to user |
+| **Temporal** | Date gap ≤ 3 months | Yes → use longer range |
+| **Emphasis** | Resume emphasizes mgmt, GitHub shows IC coding | Yes → record both framings |
+| **Omission** | Fact in source A, absent in B | Yes → keep with lower confidence |
+| **Granularity** | Resume: "Python", GitHub: "Python 3.11, FastAPI" | Yes → use more granular |
 
-Classify conflicts into 5 types:
+### 3.5c: Trust Hierarchy
 
-| Type | Description | Example | Auto-Resolve? |
-|------|-------------|---------|---------------|
-| **Factual** | Directly contradictory facts | Resume says "Java lead", GitHub shows 90% Go | No — escalate |
-| **Temporal** | Date/timeline disagreements | Resume says "2020-2023", LinkedIn says "2019-2023" | If gap ≤ 3 months: auto → use longer range |
-| **Emphasis** | Same facts, different framing | Resume emphasizes management, GitHub shows IC coding | Auto → record both framings |
-| **Omission** | Present in source A, absent in B | Resume lists cert, GitHub has no evidence | Auto → keep with lower confidence |
-| **Granularity** | Different detail levels | Resume: "Python", GitHub: "Python 3.11, FastAPI, SQLAlchemy" | Auto → use more granular version |
+Behavioral sources (what you DO, weight 0.9) > Third-party (what OTHERS say, 0.8) > Declarative (what you SAY, 0.7) > Inferred (what we DEDUCE, 0.5). See `@docs/scoring.md` for domain-specific trust specialization.
 
-### 3.5c: Source-Domain Trust Matrix
+### 3.5d: Unresolvable Conflicts
 
-When conflicts cannot be auto-resolved, use this trust hierarchy:
+Present factual conflicts to user in Step 5 preview with options to confirm which version is correct.
 
-```
-Behavioral sources (what you DO)    > confidence weight: 0.9
-  GitHub commits, contribution patterns, language stats
+### 3.5e: Contradictions as Insights ★★
 
-Declarative sources (what you SAY)  > confidence weight: 0.7
-  Resume, LinkedIn profile, personal website
-
-Inferred sources (what we DEDUCE)   > confidence weight: 0.5
-  Patterns derived from cross-referencing
-```
-
-**Trust specialization by domain:**
-
-| Domain | Most Trusted Source | Reason |
-|--------|-------------------|--------|
-| Technical skills | GitHub (behavioral) | Actual code reveals real proficiency |
-| Career narrative | Resume (declarative) | User's intentional professional framing |
-| Working style | GitHub events (behavioral) | Commit patterns don't lie |
-| Soft skills | LinkedIn recs (declarative) | Third-party endorsement |
-| Project impact | Resume highlights (declarative) | Metrics not visible in code |
-
-### 3.5d: Conflict Resolution Protocol
-
-```
-For each detected conflict:
-  1. Classify type (factual/temporal/emphasis/omission/granularity)
-  2. Check auto-resolve rules above
-  3. If auto-resolvable:
-     → Apply resolution
-     → Record in MEMORY.md under "## Cross-Source Notes"
-     → Adjust confidence accordingly
-  4. If NOT auto-resolvable (factual conflicts):
-     → Present to user in preview (Step 5):
-       "⚡ 发现跨源矛盾：
-        简历描述: Java 技术负责人 (2020-2023)
-        GitHub 数据: 90% Go 代码, Java 仅 3%
-        → 请确认: (a) 简历准确，工作中用 Java，个人项目用 Go
-                   (b) 已转型为 Go 为主
-                   (c) 两者都保留，标注差异"
-```
-
-### 3.5e: Confidence Scoring with Multi-Source Corroboration
-
-```
-Base confidence = source_type_weight (0.5 ~ 0.9)
-
-Multi-source adjustments:
-  + 0.10 if corroborated by another source (same fact, different source)
-  + 0.05 for each additional corroborating source (diminishing returns)
-  - 0.15 if contradicted by a higher-trust source
-  - 0.05 per validation warning
-
-Final confidence = clamp(adjusted, 0.0, 1.0)
-  → high:   ≥ 0.80
-  → medium: 0.50 - 0.79
-  → low:    < 0.50
-```
-
-### 3.5f: Contradictions as Insights ★★
-
-**Key innovation**: Contradictions are not just problems to solve — they reveal hidden patterns.
-
-When conflicts are detected, generate insight entries:
-
-```markdown
-## Cross-Source Insights
-> These observations emerge from patterns across your data sources.
-> They may reveal things you haven't consciously articulated.
-
-1. **技术栈转型信号**: 简历定位 Java，GitHub 主力已转向 Go (65% recent commits)
-   → 你可能正在经历技术栈转型，但简历尚未更新
-   [source: resume ↔ github] [type: factual_conflict → insight]
-
-2. **隐藏的领导力**: LinkedIn 3 条推荐信提到 mentoring，简历未体现
-   → 你的影响力可能比自我描述的更大
-   [source: linkedin ↔ resume] [type: omission → insight]
-
-3. **复合优势发现**: 支付系统(resume) × 分布式架构(github) × 全球化经验(linkedin)
-   → 这个三角组合在市场上极为稀缺
-   [source: resume + github + linkedin] [type: cross_correlation → insight]
-```
+Contradictions are not just problems — they reveal hidden patterns. Generate insight entries from detected conflicts:
+- Tech stack transition signals (resume vs GitHub language stats)
+- Hidden leadership (recommendations mention mentoring, resume doesn't)
+- Compound advantage discovery (rare skill combinations across sources)
 
 ---
 
 ## Step 4: Validate
 
 ### 4a: Schema Checks (block on errors)
-
 - ❌ `name` is empty
 - ❌ ALL of experience, education, skills, projects are empty
-- ⚠️ Experience missing company or title
-- ⚠️ Date not in YYYY-MM format
+- ⚠️ Experience missing company or title; date not in YYYY-MM format
 
 ### 4b: Semantic Checks (warn only)
-
-- ⚠️ Two experiences overlap by > 90 days (unless different teams at same company)
-- ⚠️ Experience duration > 20 years
+- ⚠️ Two experiences overlap by >90 days (unless different teams at same company)
+- ⚠️ Experience duration >20 years
 - ❌ Experience end date before start date
 
-**Do NOT check**: "first job before graduation" (internships, gap years, and different education systems make this unreliable).
+Do NOT check "first job before graduation" — internships and different education systems make this unreliable.
 
 ### 4c: Confidence Adjustment
 
-Start from source baseline, then:
-- -0.05 per validation warning
-- -0.10 per validation error
-- -0.05 if web content had noise
-- Apply multi-source corroboration adjustments from Step 3.5e
+Apply per `@docs/scoring.md`: −0.05 per warning, −0.10 per error, multi-source corroboration adjustments.
 
 ---
 
 ## Step 5: Privacy Preview
 
-### 5a: Classify Every Field
+### 5a: Field Classification
 
-| Level | Name | Action | Fields |
-|-------|------|--------|--------|
-| **L0** Public | Auto-include | Name, headline, job titles, company names, school names, technical skills, project names |
-| **L1** General | Include, cancelable | Location, work periods, education periods, highlights, domain skills, certifications |
-| **L2a** Semi-public | Preview, batch opt-in | GitHub URL, personal website, LinkedIn URL (from public sources) |
-| **L2b** Private | Skip, individual opt-in | Email, phone, physical address, salary, GPA |
+| Level | Action | Fields |
+|-------|--------|--------|
+| **L0** Public | Auto-include | Name, headline, job titles, companies, schools, technical skills, projects |
+| **L1** General | Include, cancelable | Location, work/education periods, highlights, domain skills, certs |
+| **L2a** Semi-public | Preview, batch opt-in | GitHub/LinkedIn/website URLs (from public sources) |
+| **L2b** Private | Skip, individual opt-in | Email, phone, address, salary, GPA |
 | **L3** Extreme | **ALWAYS DISCARD** | ID numbers, SSN, credit cards, passwords, API keys (`sk-`, `ghp_`, `key-`, `token`) |
 
 **L3 rule**: Scan raw text for patterns BEFORE extraction. Redact and warn.
 
-### 5b: Preview
+### 5b: Show Preview & Confirm
 
-Present a structured preview:
-
-```
-🦐 Clawsight Import Preview
-
-Source: {source} ({source_type})
-Format: {format} | Confidence: {confidence}
-Cross-Source Status: {N} sources analyzed | {M} insights discovered
-
-📋 Will Write (L0 + L1):
-┌──────────────────────────────────────────┐
-│ Name: {name}                             │
-│ Headline: {headline}                     │
-│ Experience: {N} positions ({range})      │
-│ Education: {school} ({years})            │
-│ Skills: {N} technical, {N} domain        │
-│ Projects: {N} projects                   │
-└──────────────────────────────────────────┘
-
-⚡ Cross-Source Conflicts (need your input):
-  {List any unresolved factual conflicts from Step 3.5d}
-
-🔮 Cross-Source Insights:
-  {Preview of insights from Step 3.5f}
-
-🔓 Semi-public (L2a) — reply "允许公开资料" to include:
-  • GitHub: {url}
-  • Website: {url}
-
-🔒 Sensitive (L2b):
-  (none found)
-
-👉 Reply:
-  • "确认" / "confirm" — write L0+L1 to memory
-  • "允许公开资料" / "allow public" — also include L2a
-  • "全部" / "all" — include L0+L1+L2a+L2b
-  • "取消" / "cancel" — abort
-```
-
-**Only proceed to Step 6 after user confirms.**
+Present structured preview (see `@docs/templates.md` for full format). Include cross-source conflicts and insights. Wait for user confirmation before writing. Options: confirm / allow public / all / cancel.
 
 ---
 
@@ -506,217 +239,118 @@ Cross-Source Status: {N} sources analyzed | {M} insights discovered
 
 ### USER.md — Section-based merge
 
-Write or update these **fixed sections only**. If USER.md exists, preserve all other content.
-
-```markdown
-# Identity
-
-- **Name**: {name}
-- **Headline**: {headline}
-- **Location**: {location}
-
-# Technical Skills
-
-## Primary
-{Skills confirmed by 2+ sources or appearing in 2+ experience entries}
-{Each skill annotated: "Go [confidence: high] [source: github+resume]"}
-
-## Secondary
-{Remaining skills with source tags}
-
-# Career Summary
-
-{years_of_experience} years in {primary domains}.
-
-## Career Timeline
-{Reverse-chronological, each entry:}
-- **{company}** · {team} — {title} ({start} - {end or Present})
-  {description, 1-2 lines}
-
-# Education
-
-- **{institution}** — {degree} in {field} ({start} - {end})
-  {achievements}
-
----
-*Profile built by Clawsight on {YYYY-MM-DD}*
-*Sources: {list of source types and URLs}*
-*Overall confidence: {score}*
-```
-
-**Merge rules:**
-- Known sections: `# Identity`, `# Technical Skills`, `# Career Summary`, `# Education`. Update within.
-- Unknown sections: **DO NOT TOUCH**.
-- Always update the footer.
+Write or update fixed sections: `# Identity`, `# Technical Skills`, `# Career Summary`, `# Education`. Preserve all other user-created sections. Always update the footer. See `@docs/templates.md` for full template.
 
 ### MEMORY.md — Source-tagged sections
 
-Before writing, check for existing `[source: ...]` tags. Same source → replace. Different source → append.
-
-```markdown
-## Career Trajectory [source: {source} {date}] [confidence: {level}]
-
-### {company} · {title}
-- {highlight with metrics}
-  > Evidence: "{original text}" — {source_url}
-
-Technologies: {tech list}
-
-## Technical Landscape [source: {source} {date}] [confidence: {level}]
-
-{Skills grouped by domain, each with source attribution}
-
-## Known Projects [source: {source} {date}] [confidence: {level}]
-
-- **{name}** ({role}): {description} [{technologies}]
-  > Evidence: "{text}" — {source}
-
-## Cross-Source Insights [updated: {date}]
-> These observations emerge from patterns across your data sources.
-
-{Numbered insights from Step 3.5f}
-
-## Cross-Source Notes [updated: {date}]
-> Auto-resolved reconciliation decisions for transparency.
-
-{List of auto-resolved conflicts and the resolution applied}
-```
+Same source tag → replace. Different source → append. Sections: Career Trajectory, Technical Landscape, Known Projects, Cross-Source Insights, Cross-Source Notes, Profile Evolution Log. See `@docs/templates.md`.
 
 ### memory/projects/{slug}.md
 
-Stable slug naming: lowercase, hyphens, no special chars.
+Stable slug naming (lowercase, hyphens). Create or update per project. See `@docs/templates.md`.
 
-```markdown
-# {Project Name}
+### Import Report
 
-- **Role**: {role}
-- **Technologies**: {technologies}
-- **URL**: {url}
-- **Stars**: {stars, if GitHub}
-
-## Description
-{description}
-
-## Key Achievements
-{highlights}
-
----
-*Sources: {list} | Updated: {YYYY-MM-DD} | Confidence: {level}*
-```
-
-If file exists (same slug), **update** content.
-
-### Report
-
-After writing, display:
-
-```
-📊 Clawsight Import Report
-
-Source: {source_type} — {source_url}
-New source added: ✅  (Total sources: {N})
-
-Profile Coverage (this source):  ██████████████████░░ 87/100
-
-Assistant Understanding:         ████████████████░░░░ 78/100
-Before: {X} → After: {Y} (+{delta})
-
-  Identity        ████████░░ 80%
-  Career & Skills ████████░░ 78%
-  Projects        ██████░░░░ 60%
-  Interests       █░░░░░░░░░ 10%
-  Work Style      ███░░░░░░░ 30%
-  Relationships   ░░░░░░░░░░  0%
-
-⚡ Cross-Source Insights Generated: {N}
-  1. {First insight headline}
-  2. {Second insight headline}
-  ...
-
-💡 Recommendations:
-  • {Next suggested source to add for maximum insight gain}
-  • {Specific low-scoring area and how to improve it}
-```
+Display coverage score, understanding score delta, insight headlines, and recommendations. See `@docs/templates.md`.
 
 ---
 
 ## Step 7: Insight & Potential Discovery (On-Demand)
 
-Triggered by `/clawsight insight` or when the user has 2+ sources imported.
+### 7a: Insight Report (`/clawsight insight`)
 
-### 7a: Insight Report
+Requires 2+ sources. Analyze all stored data to generate five structured insight types:
 
-Analyze all stored data to generate:
+1. **Hidden Strengths** — Strengths visible only through cross-source analysis, not present in any single source. Example: recommendations reveal mentoring ability that resume and GitHub both omit.
 
-```markdown
-# 🦐 Clawsight Insight Report
+2. **Behavioral-Declarative Gaps** — Where what you DO differs from what you SAY. Example: "简历强调管理能力，但 GitHub 活动显示你仍然是最活跃的代码贡献者 (consistency score: 0.92)."
 
-Generated: {date}
-Sources analyzed: {list}
+3. **Blind Spots** — Important aspects missing from self-presentation. Example: "3 位 LinkedIn 推荐人提到你的 mentoring，但你的简历完全没有提及."
 
-## Your Hidden Strengths
-{Strengths visible only through cross-source analysis}
+4. **Compound Advantages** — Unique combinations of skills/experience rare in the market. Example: "支付系统 × 分布式架构 × 全球化经验 — 这个组合在市场上 < 0.1% 的人具备."
 
-## Behavioral vs. Declarative Gaps
-{Where what you DO differs from what you SAY}
-- Example: "简历强调管理能力，但 GitHub 活动显示你仍然是最活跃的代码贡献者"
+5. **Evolution Signals** — Trajectory and momentum analysis. Example: "Go contributions increased 3x in 6 months — strong upward trajectory." Derived from refresh diffs and behavioral patterns.
 
-## Blind Spots
-{Important aspects missing from your self-presentation}
-- Example: "3 位 LinkedIn 推荐人提到你的 mentoring，但你的简历完全没有提及"
+See `@docs/templates.md` for the full report template.
 
-## Compound Advantages
-{Unique combinations of skills/experience that are rare in the market}
-- Example: "支付系统 × 分布式架构 × 全球化经验 — 这个组合在市场上 < 0.1% 的人具备"
-```
+### 7b: Potential Vectors (`/clawsight potential`)
 
-### 7b: Potential Discovery
+Enhances insight with forward-looking analysis:
 
-Map compound advantages against industry trends:
+1. **Search industry trends** — Use web search to find current trends relevant to user's domain and tech stack.
+2. **Map compound advantages** — Cross-reference user's unique skill combinations against trend data.
+3. **Identify opportunity gaps** — Find high-demand skills that are adjacent to (1 step from) current expertise.
+4. **Generate Potential Vectors report** — Each vector includes: the user's advantage, the market signal, the opportunity gap, and a confidence level.
 
-```markdown
-## Future Potential Vectors
+**Important**: Frame as observations and possibilities, NOT predictions. "Worth exploring" not "you should do this." See `@docs/templates.md` for the full report template.
 
-Based on your compound advantages and current industry trends:
+---
 
-1. **{Opportunity}**: {Why your unique combination positions you well}
-   - Your advantage: {specific skill combination}
-   - Market signal: {industry trend}
-   - Confidence: {level}
+## `/clawsight refresh` — Source Re-Fetch & Diff (v0.4)
 
-2. ...
-```
+Re-fetches all previously imported sources and detects changes.
 
-**Important**: These are observations and possibilities, NOT predictions. Frame them as "worth exploring" not "you should do this."
+### Refresh Pipeline
+
+1. **Enumerate sources** — Read all `[source: ...]` tags from MEMORY.md.
+2. **Staleness check** — Flag any source with last import date >90 days as ⚠️ Stale.
+3. **Re-fetch** — For each source, repeat Step 2 (Fetch) using the stored URL/path.
+4. **Diff** — Compare newly fetched data against stored data. Detect:
+   - New entries (repos, positions, skills)
+   - Removed entries
+   - Changed values (title changes, new highlights)
+5. **Profile Evolution Tracking** (v0.5) — Record detected changes in MEMORY.md `## Profile Evolution Log`:
+   - Tech stack shifts: "技术栈从 Java 主导 → Go 主导（过去 6 个月）"
+   - New projects: "新增 3 个 Rust 项目（上次刷新时为 0）"
+   - Activity changes: "开源贡献频率从 monthly → weekly"
+6. **Update** — Apply changes through the normal pipeline (Steps 3–6) with user confirmation.
+7. **Report** — Show refresh report with per-source status, evolution detected, and new insights. See `@docs/templates.md`.
+
+---
+
+## Step 8: Dialogue-Based Profile Enrichment (v0.5)
+
+This step runs **passively during normal conversations** — NOT during import.
+
+### Detection
+
+While assisting with any task, notice when the user reveals new personal/professional information:
+- "I spent the weekend building a Rust project"
+- "I just got promoted to staff engineer"
+- "We migrated our service to Kubernetes last month"
+- "我最近在学 Rust"
+
+### Behavior
+
+1. **Do NOT interrupt** the current conversation or task.
+2. **After the current task completes**, suggest:
+   > 💡 我注意到你提到了 [detected fact]. 要更新你的画像吗?
+3. **If user agrees**: Perform a lightweight update — only the relevant section of USER.md/MEMORY.md. No full pipeline, no preview for minor additions. Tag with `[source: conversation] [date: {today}] [confidence: medium]`.
+4. **If user declines or ignores**: Do nothing. Do not ask again for the same fact.
+
+### What Qualifies
+
+- New skills, technologies, or tools mentioned in use
+- Role changes, promotions, team changes
+- New projects or side projects
+- Domain expertise revealed through discussion
+- Work style preferences demonstrated in interaction
+
+### What Does NOT Qualify
+
+- Hypothetical discussions ("what if I learned Rust")
+- References to others' work
+- General knowledge questions
+- Temporary states ("I'm tired today")
 
 ---
 
 ## Scoring System
 
-### Score A: Profile Coverage (source quality)
+Two scores track profile quality. See `@docs/scoring.md` for full methodology.
 
-| Field Group | Weight | Full marks |
-|-------------|--------|-----------|
-| Identity (name, headline, location) | 20% | All 3 present |
-| Experience (with highlights + tech) | 30% | 2+ entries with highlights |
-| Education | 10% | 1+ entry with degree + field |
-| Skills (technical + domain) | 20% | 5+ technical, 1+ domain |
-| Projects | 20% | 1+ project with description |
-
-Score 0-100.
-
-### Score B: Assistant Understanding (total memory state)
-
-| Category | Weight | What to look for |
-|----------|--------|-----------------|
-| Identity | 20% | Name, headline, location in USER.md |
-| Career & Skills | 25% | Experience + skills in USER.md and MEMORY.md |
-| Projects | 20% | Files in memory/projects/ |
-| Interests | 15% | Hobbies, communities, reading lists |
-| Work Style | 10% | Communication prefs, tools, methodology |
-| Relationships | 10% | Colleagues, mentors, collaborators |
-
-Score 0-100. Low Interests/WorkStyle/Relationships after resume import is **expected**.
+- **Score A: Profile Coverage** (0–100) — Measures single-source completeness across identity, experience, education, skills, projects.
+- **Score B: Assistant Understanding** (0–100) — Measures total knowledge across all sources, including interests, work style, and relationships.
 
 ---
 
@@ -724,14 +358,15 @@ Score 0-100. Low Interests/WorkStyle/Relationships after resume import is **expe
 
 | Situation | Response |
 |-----------|----------|
-| web_fetch returns < 200 chars | Proceed to next fallback level |
+| Fetch returns <200 chars | Next fallback level |
 | All fetch attempts fail | Ask user to paste text |
 | Empty extraction | "未能提取到有效信息。请确认这是一份简历或个人资料。" |
-| Confidence < 0.50 | Show warning, recommend careful review |
+| Confidence <0.50 | Show warning, recommend review |
 | USER.md write conflict | Show diff, ask confirmation |
 | GitHub API rate limit (403) | "GitHub API 限流，请稍后重试或提供 token: `export GITHUB_TOKEN=your_token`" |
 | Network error | "网络请求失败，请检查连接或提供本地文件。" |
-| Cross-source conflict (factual) | Present in preview, ask user to resolve |
+| Cross-source factual conflict | Present in preview, ask user to resolve |
+| Refresh source unavailable | Mark as ⚠️ and continue with other sources |
 
 ---
 
@@ -743,5 +378,7 @@ Score 0-100. Low Interests/WorkStyle/Relationships after resume import is **expe
 4. **Idempotent**: Re-importing same source → update, not duplicate. Use source tags.
 5. **Language**: Respond in user's language. Keep extracted data in original language.
 6. **No fabrication**: If a field is not in the source, leave it empty. Do NOT guess.
-7. **Insights are observations**: Frame cross-source insights as observations, not judgments.
-8. **Transparency**: Every auto-resolved conflict is recorded in "Cross-Source Notes" for user review.
+7. **Insights are observations**: Frame all insights and potential vectors as observations, not judgments or predictions.
+8. **Transparency**: Every auto-resolved conflict is recorded in "Cross-Source Notes."
+9. **Non-intrusive enrichment**: Dialogue-based detection must never interrupt the user's current task.
+10. **Evolution tracking**: Every refresh records changes in the Profile Evolution Log for longitudinal analysis.
