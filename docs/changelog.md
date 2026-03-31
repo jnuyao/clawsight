@@ -2,6 +2,18 @@
 
 All notable changes to Clawsight.
 
+## [0.7.0] — 2026-03-31
+
+### Added — career-sim and 4-Skill Chain
+- **career-sim v1.0.0**: Divergent career path simulator. Generates 3-5 genuinely different career trajectories based on profile data, upstream analysis, and market signals. Comparison matrix across 8 dimensions (income trajectory, AI-proof score, skill leverage, time to impact, reversibility, market demand, compound advantage fit, risk level). Trade-off analysis with points of no return. Decision framework by priority (stability, growth, AI-readiness) with hedge strategies.
+- **career-sim README.md**: User-facing documentation for the career path simulator.
+- **Cross-skill data passing**: New `CAREER_SIM_OUTPUT` block with chosen path, thesis, year-1 focus, key skills needed, risk factors, and AI alignment level.
+
+### Changed
+- **tech-compass** updated to accept career-sim output as upstream input. When career-sim `chosen_path` is available, all recommendations (skill quadrant, learning routes, action plan) align to the selected trajectory. New error handling for missing career-sim data.
+- **scene-skills-protocol.md** updated for 4-skill chain: career-mirror → tech-spectrum → career-sim → tech-compass. Added career-sim to data flow diagram, slash command table, and chain invocation section.
+- **README.md** updated to reflect 4-skill chain (career-mirror → spectrum → sim → compass). Version badge updated to 0.7.0. Architecture diagram includes career-sim. Roadmap updated with v0.7 checked and v0.8/v0.9/v1.0 renumbered.
+
 ## [0.6.0] — 2026-03-31
 
 ### Added — Career Intelligence Chain

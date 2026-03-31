@@ -54,18 +54,20 @@ nested:
 
 1. **Append-only**: Output blocks are appended after the visible report
 2. **YAML format**: Content inside comment blocks uses YAML syntax
-3. **Namespaced**: Each skill uses its own prefix (e.g., `CAREER_MIRROR_OUTPUT`, `TECH_SPECTRUM_OUTPUT`)
+3. **Namespaced**: Each skill uses its own prefix (e.g., `CAREER_MIRROR_OUTPUT`, `TECH_SPECTRUM_OUTPUT`, `CAREER_SIM_OUTPUT`)
 4. **Optional consumption**: Downstream skills check for but don't require upstream outputs
 5. **No circular dependencies**: Data flows in one direction only
 
-### Current Data Flow
+### Current Data Flow (4-Skill Chain)
 
 ```
 career-mirror → CAREER_MIRROR_OUTPUT
                     ↓
               tech-spectrum → TECH_SPECTRUM_OUTPUT
                                    ↓
-                             tech-compass (reads both)
+                            career-sim → CAREER_SIM_OUTPUT
+                                              ↓
+                                        tech-compass (reads all upstreams)
 ```
 
 ## Invocation Patterns
@@ -78,6 +80,7 @@ Each Scene Skill registers a slash command:
 |---------|-------|
 | `/career-mirror` | Career introspection |
 | `/tech-spectrum` | AI disruption positioning |
+| `/career-sim` | Divergent career path simulation |
 | `/tech-compass` | Action planning |
 
 ### Natural Language Triggers
@@ -85,6 +88,7 @@ Each Scene Skill registers a slash command:
 Each SKILL.md defines natural language trigger patterns. Examples:
 - "analyze my career" → career-mirror
 - "where do I stand with AI" → tech-spectrum
+- "what are my career options" → career-sim
 - "what should I learn next" → tech-compass
 
 ### Chain Invocation
@@ -92,7 +96,8 @@ Each SKILL.md defines natural language trigger patterns. Examples:
 Users can trigger the full chain:
 - Run `/career-mirror` first
 - Then `/tech-spectrum` (auto-detects career-mirror output)
-- Then `/tech-compass` (auto-detects both upstream outputs)
+- Then `/career-sim` (auto-detects both upstream outputs)
+- Then `/tech-compass` (auto-detects all upstream outputs, aligns to chosen path)
 
 Or run any skill independently — each degrades gracefully without upstream data.
 

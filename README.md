@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/OpenClaw-Pure_Skill-orange" alt="OpenClaw Pure Skill">
-  <img src="https://img.shields.io/badge/version-0.6.0-green" alt="Version 0.6.0">
+  <img src="https://img.shields.io/badge/version-0.7.0-green" alt="Version 0.7.0">
   <img src="https://img.shields.io/badge/runtime-zero_dependency-brightgreen" alt="Zero Dependency">
 </p>
 
@@ -35,6 +35,7 @@ Clawsight does exactly that. Named after the **Mantis Shrimp** 🦐 — the crea
 # 3. Run the Career Intelligence Chain
 /career-mirror       # Who am I really? (introspection)
 /tech-spectrum       # Where do I stand in the AI revolution? (positioning)
+/career-sim          # What paths are open to me? (simulation)
 /tech-compass        # What do I do next? (action plan)
 ```
 
@@ -42,18 +43,18 @@ No data? Every skill works in **Lite Mode** too — just with interactive Q&A in
 
 ## The Career Intelligence Chain
 
-This is Clawsight's core value proposition: a three-skill pipeline that takes you from self-knowledge to concrete action.
+This is Clawsight's core value proposition: a four-skill pipeline that takes you from self-knowledge to concrete action.
 
 ```
-  🪞 career-mirror          🌈 tech-spectrum          🧭 tech-compass
-  ─────────────────    →    ─────────────────    →    ─────────────────
-  "Who am I really?"        "Where do I stand         "What do I do
-                             in the AI era?"            next?"
+  🪞 career-mirror       🌈 tech-spectrum       🔮 career-sim         🧭 tech-compass
+  ─────────────────  →  ─────────────────  →  ─────────────────  →  ─────────────────
+  "Who am I really?"    "Where do I stand    "What paths are       "What do I do
+                         in the AI era?"      open to me?"          next?"
 
-  ▸ Career Arc              ▸ Five-Level Spectrum      ▸ Skill Quadrant Matrix
-  ▸ Advantage Verification  ▸ AI Exposure Analysis     ▸ AI Skill Layer (L0→L4)
-  ▸ Behavioral Truth        ▸ Trend × Profile Match    ▸ Learning Routes
-  ▸ Blind Spot Map          ▸ Opportunity Windows      ▸ 30-60-90 Day Plan
+  ▸ Career Arc          ▸ Five-Level Spectrum  ▸ 3-5 Divergent Paths  ▸ Skill Quadrant Matrix
+  ▸ Advantage Verify    ▸ AI Exposure Analysis ▸ Comparison Matrix    ▸ AI Skill Layer (L0→L4)
+  ▸ Behavioral Truth    ▸ Trend × Profile      ▸ Trade-off Analysis   ▸ Learning Routes
+  ▸ Blind Spot Map      ▸ Opportunity Windows  ▸ Decision Framework   ▸ 30-60-90 Day Plan
 ```
 
 Each skill automatically passes structured data downstream, so the chain builds on itself:
@@ -62,7 +63,8 @@ Each skill automatically passes structured data downstream, so the chain builds 
 |-------|---------|-------|--------|
 | **[career-mirror](skills/career-mirror/)** | `/career-mirror` | Clawsight profile | Verified advantages, behavioral patterns, blind spots |
 | **[tech-spectrum](skills/tech-spectrum/)** | `/tech-spectrum` | Profile + career-mirror | AI spectrum position, exposure analysis, opportunity windows |
-| **[tech-compass](skills/tech-compass/)** | `/tech-compass` | Profile + both upstreams | Skill quadrant, AI skill layer, action plan |
+| **[career-sim](skills/career-sim/)** | `/career-sim` | Profile + both upstreams | 3-5 divergent career paths, comparison matrix, trade-offs |
+| **[tech-compass](skills/tech-compass/)** | `/tech-compass` | Profile + all upstreams | Skill quadrant, AI skill layer, action plan for chosen path |
 
 ### Three Operating Modes
 
@@ -129,14 +131,15 @@ Not all data is equal:
 
 ```
   Sources                    Memory                   Scene Skills
-  ────────                   ──────                   ────────────
-  Resume ─┐                  USER.md                  🪞 career-mirror
+  ───────┈                    ──────                   ────────────
+  Resume ─┐                 USER.md                  🪞 career-mirror
   GitHub ─┤   Parse →        MEMORY.md          →     🌈 tech-spectrum
-  LinkedIn┤   Reconcile →    memory/projects/*         🧭 tech-compass
-  Website ┘   Write →                                  📝 writing-voice *
-                                                       📚 learning-path *
-              ⛔ Privacy Preview                       👤 stakeholder-briefer *
-              before any write
+  LinkedIn┤   Reconcile →    memory/projects/*         🔮 career-sim
+  Website ┘   Write →                                  🧭 tech-compass
+                                                       📝 writing-voice *
+              ⛔ Privacy Preview                       📚 learning-path *
+              before any write                         👤 stakeholder-briefer *
+
                                                        * Planned
 ```
 
@@ -195,8 +198,9 @@ Every data claim in output is tagged `[data-based]`, `[general-knowledge]`, or `
 - [x] **v0.4** — Insight deepening + LinkedIn recommendations + refresh
 - [x] **v0.5** — Potential discovery + dialogue enrichment + career-mirror v1
 - [x] **v0.6** — Career Intelligence Chain (career-mirror v2 + tech-spectrum + tech-compass)
-- [ ] **v0.7** — MCP Phase 2: real-time trend data + job market validation
-- [ ] **v0.8** — writing-voice + learning-path Scene Skills
+- [x] **v0.7** — career-sim + 4-skill chain (mirror → spectrum → sim → compass)
+- [ ] **v0.8** — MCP Phase 2: real-time trend data + job market validation
+- [ ] **v0.9** — writing-voice + learning-path Scene Skills
 - [ ] **v1.0** — OpenClaw profile standard + community skill marketplace
 
 ## Contributing
