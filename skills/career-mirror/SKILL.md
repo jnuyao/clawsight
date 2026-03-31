@@ -1,16 +1,16 @@
 ---
 name: career-mirror
-version: 2.0.0
+version: 2.1.0
 description: >
-  Career introspection and advantage verification. Use when analyzing career
-  trajectory, identifying strengths, discovering behavioral patterns, or
-  cross-validating skills across sources. Use when user says: analyze my career,
-  what are my strengths, career review, skill audit, 分析我的职业, 我的优势是什么,
-  职业复盘, 优势分析. Commands: /career-mirror.
+  Career introspection with AI-era context overlay. Analyzes career trajectory
+  against AI development history, verifies advantages across sources, discovers
+  behavioral patterns and blind spots. Use when: analyze my career, what are my
+  strengths, career review, skill audit, 分析我的职业, 我的优势是什么, 职业复盘.
+  Commands: /career-mirror.
   Upstream: Clawsight profile. Downstream: tech-spectrum, tech-compass.
 user-invocable: true
-argument-hint: (no arguments — reads Clawsight profile automatically)
-metadata: { "openclaw": { "emoji": "🪞", "homepage": "https://github.com/jnuyao/clawsight", "version": "2.0.0" } }
+argument-hint: (no arguments)
+metadata: { "openclaw": { "emoji": "🪞", "homepage": "https://github.com/jnuyao/clawsight", "version": "2.1.0" } }
 ---
 
 # Career Mirror — 职业内省镜
@@ -18,99 +18,102 @@ metadata: { "openclaw": { "emoji": "🪞", "homepage": "https://github.com/jnuya
 ## Quick Start
 
 ```
-/career-mirror          # Full introspection from Clawsight profile
+/career-mirror          # Full introspection with AI-era context
 ```
 
-No profile? Career Mirror will ask 3 quick questions and generate a lite report.
-
-Chain: **career-mirror** (you are here) → `/tech-spectrum` → `/tech-compass`
+Chain: **career-mirror** → `/tech-spectrum` → `/tech-compass`
 
 ## Mode Detection
 
 1. **Check** for `USER.md`, `MEMORY.md`, `memory/projects/*.md`.
-2. **If** ≥1 source with career data → **Rich Mode** (full 4-section report).
-3. **If** no profile → **Lite Mode**.
+2. **If** ≥1 source → **Rich Mode** (5 sections). **Else** → **Lite Mode**.
 
 ## Lite Mode
 
-1. **Ask** the user for: current role + years, 3-5 core skills, one career question.
-2. **Generate** Sections 1-3 only, without cross-source analysis.
-3. **End with**: "💡 Install Clawsight and import multiple sources for deeper cross-source insights."
+1. **Ask** for: current role + years, 3-5 core skills, one career question.
+2. **Generate** Sections 1-2 only, without cross-source or AI timeline analysis.
+3. **End with**: "💡 Import sources for cross-source depth."
 
 ## Rich Mode — Full Report
 
-1. **Read** all available memory files. **Do NOT modify any file.**
-2. **Generate** the following 4 sections.
+1. **Read** all memory files + `${CLAUDE_SKILL_DIR}/docs/ai-trends.md`. **Never modify any file.**
+2. **Generate** the following 5 sections.
 
-### Section 1: Career Arc
+### Section 1: Career Arc × AI Timeline
 
-1. **Map** career as phases with transitions:
+1. **Map** career as phases, each annotated with its AI development stage:
    ```
-   Phase 1: {label} ({years}) — {focus}, {evidence-linked achievement}
+   Phase 1: {label} ({years}) — {achievement}  [AI: {奠基期/突破期/爆发期/深化期}]
        ↓ Pivot: {trigger}
-   Phase 2: ...
-   Phase N: Current — {positioning}
+   Phase N: Current  [AI: Agent & 应用深化期]
    ```
-2. **Identify** consistency thread (pattern persisting across all phases).
-3. **Flag** acceleration signals (promotions, scope expansions, role jumps).
-4. **Flag** unfinished transitions (direction changes started but not completed).
+2. **Analyze timing**: For each phase, state what AI capabilities existed and didn't. Identify where user was ahead of the wave, behind it, or riding it.
+3. **Flag** consistency thread, acceleration signals, unfinished transitions.
 
-### Section 2: Compound Advantage Analysis
+### Section 2: Compound Advantage × AI Value Trajectory
 
 1. **Build** Advantage Verification Matrix:
 
-| Capability | Declared (Resume) | Behavioral (GitHub) | Third-party (Recs) | Status |
-|------------|:-:|:-:|:-:|:-:|
-| {skill} | ✅/❌ | ✅/❌ | ✅/❌/— | ⭐/⚠️/❓ |
+| Capability | Declared | Behavioral | Third-party | Status | AI Trajectory |
+|------------|:---:|:---:|:---:|:---:|:---:|
+| {skill} | ✅/❌ | ✅/❌ | ✅/❌/— | ⭐/⚠️/❓ | 📈/📉/➡️ |
 
-Legend: ⭐ Triple-verified · ✅✅ Dual-verified · ⚠️ Declared-only · ❓ Behavioral-only
+⭐ Triple-verified · ⚠️ Declared-only · ❓ Behavioral-only
+📈 AI amplifies this advantage · 📉 AI erodes this advantage · ➡️ Stable
 
-2. **State** primary advantage: the defining skill/domain combination, with evidence.
-3. **Assess** rarity: {X} × {Y} × {Z} = rarity judgment based on co-occurrence.
+2. **State** primary advantage + rarity assessment with evidence.
+3. **For each verified advantage**: Is it appreciating or depreciating as AI evolves? Reference specific developments from ai-trends.md. This is the most important column.
 4. **List** secondary advantages that amplify the primary.
 
 ### Section 3: Behavioral Truth
 
-1. **Identify** Declaration-Behavior Gaps. Frame as "unrecognized shifts," not errors.
-2. **Build** Work Style Portrait: coding rhythm, builder-vs-maintainer ratio, collaboration style, learning signals, consistency score — all evidence-linked.
+1. **Identify** Declaration-Behavior Gaps. Frame as "unrecognized shifts."
+2. **Build** Work Style Portrait: rhythm, builder/maintainer ratio, collaboration, learning signals — all evidence-linked.
 
 ### Section 4: Blind Spot Map
 
-1. **Surface** undervalued capabilities (present in data, poorly articulated).
-2. **Identify** narrative gaps (important career chapters missing from the story).
-3. **Flag** cognitive bias signals (patterns suggesting self-assessment biases).
+1. **Surface** undervalued capabilities (in data but poorly articulated).
+2. **Identify** narrative gaps (important chapters missing from career story).
+3. **Flag AI-specific blind spots**: domains heavily targeted by AI where user shows zero AI engagement in behavioral data. Be specific: name the AI track and its current stage.
+4. **Flag** cognitive bias signals.
+
+### Section 5: Career Moment Assessment
+
+1. **State** which AI stage the user's skill profile is aligned with vs. where the industry is now. Gap = urgency signal.
+2. **Deliver** the single most important insight — the one thing the user most needs to hear but probably hasn't considered.
 
 ## Report Footer
 
 ```
----
-*Generated by Career Mirror v2.0 | This is a mirror, not a map.*
-*Ready to find your position in the AI landscape? → /tech-spectrum*
+*Generated by Career Mirror v2.1 | A mirror, not a map. → /tech-spectrum*
 ```
 
 ## Cross-Skill Data Passing
 
-**Append** at report end (invisible to user, consumed by tech-spectrum):
+**Append** (invisible to user):
 
 ```html
 <!-- CAREER_MIRROR_OUTPUT
-version: 2.0
+version: 2.1
 date: {ISO date}
 compound_advantages:
   primary: "{description}"
   secondary: ["{s1}", "{s2}"]
   rarity: "{assessment}"
+  ai_trajectory: "{appreciating/depreciating/stable}"
 behavioral_pattern:
   type: "{Builder/Maintainer/Hybrid}"
-  schedule: "{morning/evening/mixed}"
   collaboration: {0.0-1.0}
-career_phase: "{current phase label}"
+career_phase: "{current phase}"
+ai_era_alignment: "{which AI stage user operates in}"
 blind_spots: ["{b1}", "{b2}"]
+ai_blind_spots: ["{ab1}"]
 verification:
   triple_verified: ["{skills}"]
   dual_verified: ["{skills}"]
   declared_only: ["{skills}"]
   behavioral_only: ["{skills}"]
+projects: ["{project names}"]
 -->
 ```
 
@@ -118,17 +121,17 @@ verification:
 
 | Situation | Response | Then |
 |-----------|----------|------|
-| No memory files found | — | Switch to Lite Mode |
-| USER.md exists but empty | "Profile data is empty." | Suggest `/clawsight <source>` |
-| Only 1 source imported | Generate report, skip cross-source | Note: "Single-source analysis only" |
-| Third-party data missing | Skip Third-party column in matrix | Note: "Import LinkedIn recs for triple verification" |
+| No memory files | — | Switch to Lite Mode |
+| ai-trends.md missing | Skip AI overlay | Note: "AI context unavailable" |
+| Single source only | Skip cross-source | Note: "Single-source analysis" |
+| No projects in memory/ | Skip project insights | Note: "Import projects for depth" |
 
 ## Constraints
 
-1. **Evidence-first.** Every claim cites a specific data point. No fabrication.
-2. **Observe, don't prescribe.** "This pattern suggests..." not "You should..."
+1. **Evidence-first.** Every claim cites a data point. No fabrication.
+2. **Observe, don't prescribe.** "This suggests..." not "You should..."
 3. **Read-only.** Never write to memory files.
-4. **Constructive framing.** Gaps are insights, not errors.
-5. **Match user language.** Output in the profile's primary language.
-6. **Mark confidence.** Tag [multi-source] vs [single-source] basis.
-7. **Scope boundary.** No career direction suggestions — that's tech-spectrum and tech-compass.
+4. **Constructive framing.** Gaps = insights, not errors.
+5. **Match user language.** Output in profile's primary language.
+6. **Mark confidence.** Tag [multi-source], [single-source], or [general-knowledge].
+7. **Scope boundary.** No direction suggestions — that's tech-spectrum/tech-compass.
