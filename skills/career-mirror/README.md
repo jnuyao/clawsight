@@ -1,14 +1,20 @@
-# Career Mirror 🪞
+# Career Mirror — Scene Skill for Career Introspection
 
-> AI-powered career direction analysis — see your trajectory, compound advantages, and future vectors.
+> Part of the Clawsight Scene Skill ecosystem
 
-**Career Mirror** is a Scene Skill in the [Clawsight](https://github.com/jnuyao/clawsight) ecosystem. It reads your AI profile (USER.md + MEMORY.md) and generates a comprehensive career analysis.
+## What It Does
 
-## Install
+Career Mirror is your professional introspection tool. It reads your Clawsight profile (built from resumes, GitHub, LinkedIn, and other sources) and produces a deep self-awareness report.
 
-```
-/install career-mirror
-```
+**It answers**: "Who am I, professionally? What are my real strengths, and what am I not seeing?"
+
+## Key Features
+
+- **Career Arc Analysis**: Career trajectory as phases with pivot points and acceleration signals
+- **Compound Advantage Discovery**: Unique skill combinations with market rarity assessment
+- **Advantage Verification Matrix**: Cross-validates each skill across declaration (resume), behavior (GitHub), and third-party (recommendations) — the core v2.0 innovation
+- **Behavioral Truth**: Surfaces gaps between what you say and what you do
+- **Blind Spot Map**: Undervalued capabilities, narrative gaps, cognitive bias signals
 
 ## Usage
 
@@ -16,41 +22,24 @@
 /career-mirror
 ```
 
-## What You Get
+## Modes
 
-| Section | What It Reveals |
-|---------|----------------|
-| Career Trajectory Map | Your career phases, pivot points, and acceleration signals |
-| Compound Advantage Analysis | Rare skill combinations that define your unique position |
-| Current Positioning | Where you sit on the specialist↔generalist spectrum |
-| Direction Vectors | 2-3 possible career paths with gap analysis |
-| Blind Spot Alert | What you're underemphasizing or missing |
-| Actionable Next Steps | Concrete actions for each direction |
+| Mode | When | What You Get |
+|------|------|-------------|
+| **Rich** | Clawsight profile exists | Full 4-section report with cross-source verification |
+| **Lite** | No profile | Simplified analysis based on self-description |
 
-## Rich Mode vs Lite Mode
-
-- **Rich Mode** (with Clawsight profile): Multi-source analysis with behavioral data, cross-source insights, and high-confidence recommendations
-- **Lite Mode** (without Clawsight): Basic analysis from self-description. Still useful, but less depth
-
-## Best Results
-
-For the deepest analysis, first import your profile with [Clawsight](https://github.com/jnuyao/clawsight):
+## Part of a Chain
 
 ```
-/clawsight https://github.com/yourusername
-/clawsight resume.pdf
-/career-mirror
+/career-mirror → /tech-spectrum → /tech-compass
+  "Who am I?"     "Where do I stand?"  "Where do I go?"
 ```
 
-## Part of the Clawsight Ecosystem
+Each step builds on the previous. Career Mirror output automatically feeds into Tech Spectrum for deeper positioning analysis.
 
-Career Mirror is one of several Scene Skills that consume Clawsight profile data:
+## What It Does NOT Do
 
-- **career-mirror** (this) — Career direction analysis
-- **tech-compass** — Technology roadmap suggestions
-- *writing-voice* — Write in your authentic voice (coming soon)
-- *learning-path* — Personalized learning plans (coming soon)
-
-## License
-
-MIT
+- ❌ Does not suggest career directions (that's tech-spectrum + tech-compass)
+- ❌ Does not modify your Clawsight profile (read-only)
+- ❌ Does not fabricate data — every insight is evidence-linked

@@ -1,158 +1,134 @@
 ---
 name: career-mirror
+version: 2.0.0
 description: >
-  AI-powered career direction analysis based on your Clawsight profile.
-  Discover where you've been, where you are, and where you could go.
+  Career introspection and advantage verification. Use when analyzing career
+  trajectory, identifying strengths, discovering behavioral patterns, or
+  cross-validating skills across sources. Use when user says: analyze my career,
+  what are my strengths, career review, skill audit, 分析我的职业, 我的优势是什么,
+  职业复盘, 优势分析. Commands: /career-mirror.
+  Upstream: Clawsight profile. Downstream: tech-spectrum, tech-compass.
 user-invocable: true
-metadata:
-  {
-    "openclaw": {
-      "emoji": "🪞",
-      "homepage": "https://github.com/jnuyao/clawsight"
-    }
-  }
+argument-hint: (no arguments — reads Clawsight profile automatically)
+metadata: { "openclaw": { "emoji": "🪞", "homepage": "https://github.com/jnuyao/clawsight", "version": "2.0.0" } }
 ---
 
-# Career Mirror: AI Career Direction Analysis
+# Career Mirror — 职业内省镜
 
-You are an AI career analyst. When the user invokes `/career-mirror`, generate a comprehensive career direction analysis based on their profile data.
-
-## Prerequisites
-
-Check for Clawsight profile data:
-1. Read `USER.md` and `MEMORY.md` in workspace root
-2. Read `memory/projects/*.md` if present
-
-**If profile data exists** → proceed with full analysis (Rich Mode).
-**If no profile data** → operate in Lite Mode (ask user to describe their background, or suggest installing Clawsight: "安装 clawsight 技能并导入你的简历/GitHub，可以获得更深度的分析").
-
-## Trigger Conditions
-
-Activate when the user:
-- Uses `/career-mirror`
-- Asks about career direction, career advice, or career path
-- Says "分析我的职业方向", "where should my career go", "what are my career options"
-
-## Analysis Framework (Rich Mode)
-
-Generate a report with these sections:
-
-### 1. Career Trajectory Map
-
-Analyze the user's career path from their experience timeline:
+## Quick Start
 
 ```
-Phase 1: Foundation ({years}) — {domain/role focus}
-  ↓
-Phase 2: Growth ({years}) — {expansion direction}
-  ↓
-Phase 3: Current ({years}) — {current positioning}
+/career-mirror          # Full introspection from Clawsight profile
 ```
 
-Look for:
-- **Consistent themes** across positions (what's the thread?)
-- **Pivot points** (when and why did direction change?)
-- **Acceleration signals** (promotions, scope expansion, role evolution)
-- **Lateral moves** (breadth over depth periods)
+No profile? Career Mirror will ask 3 quick questions and generate a lite report.
 
-### 2. Compound Advantage Analysis
+Chain: **career-mirror** (you are here) → `/tech-spectrum` → `/tech-compass`
 
-Pull from MEMORY.md `## Cross-Source Insights` if available. Otherwise, derive from career data:
+## Mode Detection
 
-- **Primary advantage**: The skill/domain combination that defines the user
-- **Secondary advantages**: Supporting capabilities that amplify the primary
-- **Rare combinations**: Intersections that few people possess
-- **Quantify rarity**: "This combination of {X} × {Y} × {Z} is found in < {N}% of professionals"
+1. **Check** for `USER.md`, `MEMORY.md`, `memory/projects/*.md`.
+2. **If** ≥1 source with career data → **Rich Mode** (full 4-section report).
+3. **If** no profile → **Lite Mode**.
 
-### 3. Current Positioning Assessment
+## Lite Mode
 
-Based on latest role and activity:
+1. **Ask** the user for: current role + years, 3-5 core skills, one career question.
+2. **Generate** Sections 1-3 only, without cross-source analysis.
+3. **End with**: "💡 Install Clawsight and import multiple sources for deeper cross-source insights."
 
-| Dimension | Assessment |
-|-----------|-----------|
-| Technical depth | Deep specialist ↔ Broad generalist |
-| Leadership scope | IC ↔ Team lead ↔ Org leader |
-| Domain focus | Narrow specialist ↔ Cross-domain |
-| Innovation level | Executor ↔ Builder ↔ Creator |
-| Market alignment | Legacy ↔ Current ↔ Emerging |
+## Rich Mode — Full Report
 
-### 4. Direction Vectors
+1. **Read** all available memory files. **Do NOT modify any file.**
+2. **Generate** the following 4 sections.
 
-Present 2-3 possible career directions, each with:
+### Section 1: Career Arc
+
+1. **Map** career as phases with transitions:
+   ```
+   Phase 1: {label} ({years}) — {focus}, {evidence-linked achievement}
+       ↓ Pivot: {trigger}
+   Phase 2: ...
+   Phase N: Current — {positioning}
+   ```
+2. **Identify** consistency thread (pattern persisting across all phases).
+3. **Flag** acceleration signals (promotions, scope expansions, role jumps).
+4. **Flag** unfinished transitions (direction changes started but not completed).
+
+### Section 2: Compound Advantage Analysis
+
+1. **Build** Advantage Verification Matrix:
+
+| Capability | Declared (Resume) | Behavioral (GitHub) | Third-party (Recs) | Status |
+|------------|:-:|:-:|:-:|:-:|
+| {skill} | ✅/❌ | ✅/❌ | ✅/❌/— | ⭐/⚠️/❓ |
+
+Legend: ⭐ Triple-verified · ✅✅ Dual-verified · ⚠️ Declared-only · ❓ Behavioral-only
+
+2. **State** primary advantage: the defining skill/domain combination, with evidence.
+3. **Assess** rarity: {X} × {Y} × {Z} = rarity judgment based on co-occurrence.
+4. **List** secondary advantages that amplify the primary.
+
+### Section 3: Behavioral Truth
+
+1. **Identify** Declaration-Behavior Gaps. Frame as "unrecognized shifts," not errors.
+2. **Build** Work Style Portrait: coding rhythm, builder-vs-maintainer ratio, collaboration style, learning signals, consistency score — all evidence-linked.
+
+### Section 4: Blind Spot Map
+
+1. **Surface** undervalued capabilities (present in data, poorly articulated).
+2. **Identify** narrative gaps (important career chapters missing from the story).
+3. **Flag** cognitive bias signals (patterns suggesting self-assessment biases).
+
+## Report Footer
 
 ```
-Direction A: {Title}
-  Why it fits: {Based on compound advantages}
-  What you'd leverage: {Existing skills}
-  What you'd need: {Gap analysis}
-  Market demand: {High/Medium/Low with reasoning}
-  Risk level: {Low/Medium/High}
-  Time horizon: {Months to become credible}
-```
-
-**Rules for direction suggestions:**
-- MUST connect to existing strengths (not random pivots)
-- MUST consider the user's behavioral signals (what they naturally gravitate toward)
-- If behavioral and declarative data conflict, note both possibilities
-- Include at least one "unexpected" direction that leverages hidden strengths
-
-### 5. Blind Spot Alert
-
-Identify potential career blind spots:
-- Skills the market values that the user underemphasizes
-- Experience the user has but doesn't articulate well
-- Emerging trends in their domain they may not be tracking
-
-### 6. Actionable Next Steps
-
-For each direction vector, provide:
-1. **Immediate action** (this week): One concrete step
-2. **30-day milestone**: Something achievable and measurable
-3. **Signal to watch**: How to know if this direction is working
-
-## Analysis Framework (Lite Mode)
-
-When no Clawsight profile data exists:
-
-1. Ask the user: "请简单描述你的背景：当前角色、工作年限、核心技能、以及你对职业方向的困惑"
-2. Generate a simplified version of the Rich Mode report
-3. At the end, suggest: "如果你想要更深度的分析，可以安装 [clawsight](https://github.com/jnuyao/clawsight) 技能，导入你的简历和 GitHub 数据。多源交叉分析能发现你自己可能没意识到的优势。"
-
-## Output Format
-
-```markdown
-# 🪞 Career Mirror Report
-
-Generated: {date}
-Profile sources: {list from MEMORY.md source tags, or "user-provided" in Lite Mode}
-
-## 职业轨迹图
-{Section 1}
-
-## 复合优势分析
-{Section 2}
-
-## 当前定位评估
-{Section 3}
-
-## 方向向量
-{Section 4}
-
-## 盲区提醒
-{Section 5}
-
-## 行动建议
-{Section 6}
-
 ---
-*Generated by Career Mirror · Powered by [Clawsight](https://github.com/jnuyao/clawsight) profile data*
+*Generated by Career Mirror v2.0 | This is a mirror, not a map.*
+*Ready to find your position in the AI landscape? → /tech-spectrum*
 ```
 
-## Important Constraints
+## Cross-Skill Data Passing
 
-1. **Observations, not prescriptions**: Frame everything as analysis and possibilities, not "you should"
-2. **Evidence-based**: Every claim should trace back to profile data. Use `> Evidence:` blocks
-3. **Acknowledge uncertainty**: Use confidence levels. Lite Mode analysis is explicitly lower confidence
-4. **Cultural sensitivity**: Career paths vary by culture, industry, and personal values. Don't assume one model fits all
-5. **No fabrication**: If data is insufficient for a section, say so rather than guessing
-6. **Language**: Match the user's language
+**Append** at report end (invisible to user, consumed by tech-spectrum):
+
+```html
+<!-- CAREER_MIRROR_OUTPUT
+version: 2.0
+date: {ISO date}
+compound_advantages:
+  primary: "{description}"
+  secondary: ["{s1}", "{s2}"]
+  rarity: "{assessment}"
+behavioral_pattern:
+  type: "{Builder/Maintainer/Hybrid}"
+  schedule: "{morning/evening/mixed}"
+  collaboration: {0.0-1.0}
+career_phase: "{current phase label}"
+blind_spots: ["{b1}", "{b2}"]
+verification:
+  triple_verified: ["{skills}"]
+  dual_verified: ["{skills}"]
+  declared_only: ["{skills}"]
+  behavioral_only: ["{skills}"]
+-->
+```
+
+## Error Handling
+
+| Situation | Response | Then |
+|-----------|----------|------|
+| No memory files found | — | Switch to Lite Mode |
+| USER.md exists but empty | "Profile data is empty." | Suggest `/clawsight <source>` |
+| Only 1 source imported | Generate report, skip cross-source | Note: "Single-source analysis only" |
+| Third-party data missing | Skip Third-party column in matrix | Note: "Import LinkedIn recs for triple verification" |
+
+## Constraints
+
+1. **Evidence-first.** Every claim cites a specific data point. No fabrication.
+2. **Observe, don't prescribe.** "This pattern suggests..." not "You should..."
+3. **Read-only.** Never write to memory files.
+4. **Constructive framing.** Gaps are insights, not errors.
+5. **Match user language.** Output in the profile's primary language.
+6. **Mark confidence.** Tag [multi-source] vs [single-source] basis.
+7. **Scope boundary.** No career direction suggestions — that's tech-spectrum and tech-compass.

@@ -1,6 +1,16 @@
 # Tech Compass — Scene Skill Prompt Template
 
-> A scene skill that analyzes the user's technical skill evolution and suggests learning directions.
+> **Deprecated**: This file is a legacy prompt template from v0.3. The full implementation is now in [`skills/tech-compass/SKILL.md`](../../skills/tech-compass/SKILL.md).
+
+## Current Implementation
+
+Tech Compass has been promoted to a full Scene Skill in v0.6.0 with:
+
+- **Skill Quadrant Matrix**: Your-Level × Market-Demand → Core Assets / Priority Investment / Moat / Deprioritize
+- **AI Skill Layer Assessment**: L0 (User) → L4 (Definer) progression with evidence-based placement
+- **Learning Routes**: Personalized paths based on compound advantages from career-mirror
+- **30-60-90 Day Action Plan**: Concrete milestones with success criteria
+- **Risk & Adaptation**: Disruption timeline + contingency planning
 
 ## Usage
 
@@ -8,34 +18,25 @@
 /tech-compass
 ```
 
-## Prompt Template
+## Three Operating Modes
 
-You are a technical mentor with access to the user's Clawsight profile data. Read USER.md, MEMORY.md, and memory/projects/.
+| Mode | Condition | Input Sources |
+|------|-----------|---------------|
+| Enhanced | Profile + upstream skill outputs | career-mirror + tech-spectrum outputs |
+| Rich | Profile data available | USER.md, MEMORY.md, memory/projects/* |
+| Lite | No profile data | Interactive Q&A only |
 
-Generate a **Tech Compass Report** that maps their technical landscape and suggests directions:
+## Skill Chain
 
-### 1. Current Tech Stack
-Map their actual technology usage based on multi-source evidence. Distinguish between:
-- **Active mastery**: Used frequently, confirmed by behavioral data (GitHub)
-- **Declared knowledge**: Listed on resume but not recently active
-- **Emerging interest**: Appearing in recent projects but not yet dominant
+Tech Compass is the action endpoint of the career intelligence chain:
 
-### 2. Skill Depth vs Breadth
-Analyze whether the user is a specialist or generalist based on their project diversity and language distribution. Note any T-shaped or π-shaped patterns.
+```
+career-mirror (introspection) → tech-spectrum (positioning) → tech-compass (action)
+```
 
-### 3. Technology Trends Alignment
-Compare their active tech stack against current industry trends. Identify:
-- **Well-positioned**: Skills that are growing in demand
-- **At risk**: Skills that are declining
-- **Opportunity gap**: High-demand skills adjacent to their current expertise
+## References
 
-### 4. Recommended Learning Path
-Based on compound advantages and market trends, suggest 2-3 specific technologies or domains to explore. Each recommendation should:
-- Connect to existing strengths (not random)
-- Reference market demand signals
-- Include a concrete first step
-
-## Dependencies
-
-- Requires Clawsight profile data (USER.md + MEMORY.md)
-- Best results with GitHub source imported (behavioral data)
+- [SKILL.md](../../skills/tech-compass/SKILL.md) — Full implementation
+- [README.md](../../skills/tech-compass/README.md) — User-facing documentation
+- [skill-layers.md](../../docs/skill-layers.md) — AI Skill Layers L0-L4 detailed criteria
+- [scene-skills-protocol.md](../../docs/scene-skills-protocol.md) — Cross-skill interaction protocol

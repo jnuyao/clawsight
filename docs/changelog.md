@@ -2,6 +2,29 @@
 
 All notable changes to Clawsight.
 
+## [0.6.0] — 2026-03-31
+
+### Added — Career Intelligence Chain
+- **career-mirror v2.0**: Rewritten to focus on pure introspection. New Advantage Verification Matrix with triple-source cross-validation (Declared × Behavioral × Third-party). 4 report sections: Career Arc, Compound Advantage Analysis, Behavioral Truth, Blind Spot Map. Strict scope boundary — observation only, no direction prescriptions.
+- **tech-spectrum v1.0**: AI disruption positioning skill. Five-level AI Spectrum (AI-vulnerable → AI-adjacent → AI-augmented → AI-native → AI-shaping). Three-layer analysis: AI Exposure → AI Readiness → Trend Intersection. References `docs/ai-trends.md` for 8-track trend data.
+- **tech-compass v1.0**: Action planning endpoint of the career chain. Skill Quadrant Matrix (Your-Level × Market-Demand), AI Skill Layer Assessment (L0-L4), personalized Learning Routes, 30-60-90 Day Action Plan with success criteria, Risk & Adaptation with disruption timeline.
+- **Cross-skill data passing protocol**: HTML comment blocks with YAML (`<!-- CAREER_MIRROR_OUTPUT ... -->`, `<!-- TECH_SPECTRUM_OUTPUT ... -->`) for structured data flow between skills.
+- **Three operating modes**: Enhanced (profile + upstream outputs), Rich (profile only), Lite (no profile).
+- `docs/scene-skills-protocol.md` — Cross-skill interaction rules, data flow, invocation patterns
+- `docs/skill-layers.md` — AI Skill Layers L0-L4 framework with criteria, evidence signals, and career phase recommendations
+- `docs/ai-trends.md` — Comprehensive AI development timeline: 130+ milestones across 8 tracks (Agent & Toolchain, AI-Native Dev, Vertical AI, Multimodal, Safety & Governance, Infrastructure, Data Engineering, Hardware/Edge)
+- README.md for each new Scene Skill (`skills/tech-spectrum/README.md`, `skills/tech-compass/README.md`)
+
+### Changed
+- career-mirror narrowed from career direction analysis to pure introspection (direction suggestions moved to tech-compass)
+- architecture.md updated with Career Intelligence Chain diagram, cross-skill data flow, MCP Enhancement Path, and trust hierarchy fix (added Third-party 0.8 weight)
+- README.md updated with Scene Skills section, three operating modes, cross-skill data flow, and new documentation links
+- `examples/prompts/tech-compass.md` updated to redirect to full Scene Skill implementation
+
+### Architecture
+- Defined MCP Enhancement Path: Phase 1 (Pure Skill) → Phase 2 (MCP tools for real-time data) → Phase 3 (structured data layer)
+- Scene Skill size budget: < 6KB per SKILL.md, with methodology docs extracted to `docs/`
+
 ## [0.5.0] — 2026-03-30
 
 ### Added — Layer 3: Potential Discovery
