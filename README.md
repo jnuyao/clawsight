@@ -9,7 +9,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/OpenClaw-Pure_Skill-orange" alt="OpenClaw Pure Skill">
-  <img src="https://img.shields.io/badge/version-0.5.0-green" alt="Version 0.5.0">
+  <img src="https://img.shields.io/badge/version-0.6.0-green" alt="Version 0.6.0">
   <img src="https://img.shields.io/badge/runtime-zero_dependency-brightgreen" alt="Zero Dependency">
 </p>
 
@@ -124,28 +124,58 @@ Clawsight operates through three intelligence layers:
 │USER.md │ │MEMORY.md │ │projects/* │
 └────────┘ └──────────┘ └───────────┘
                  │
-        ┌────────┴────────┐
-        ▼                 ▼
-   ┌─────────┐     ┌───────────┐
-   │ Insight │     │ Potential │
-   │ Engine  │     │ Discovery │
-   └─────────┘     └───────────┘
+    ┌────────────┼─────────────────┐
+    ▼            ▼                 ▼
+┌─────────┐ ┌───────────┐ ┌──────────────┐
+│ Insight │ │ Potential │ │ Scene Skills │
+│ Engine  │ │ Discovery │ │  Ecosystem   │
+└─────────┘ └───────────┘ └──────────────┘
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the full technical deep dive.
 
-## Scene Skills
+## Scene Skills — Career Intelligence Chain
 
-Clawsight generates profile data. **Scene Skills** consume it for specialized analysis:
+Clawsight generates profile data. **Scene Skills** consume it for specialized analysis. The **Career Intelligence Chain** is a three-skill pipeline that turns self-knowledge into action:
 
-| Skill | Description |
-|-------|-------------|
-| [career-mirror](skills/career-mirror/) | Career direction analysis with compound advantage mapping |
+```
+career-mirror (内省)  →  tech-spectrum (定位)  →  tech-compass (行动)
+   "Where am I?"          "Where do I stand        "What do I do
+                           in the AI era?"           next?"
+```
+
+| Skill | Command | What It Does | Status |
+|-------|---------|-------------|--------|
+| [career-mirror](skills/career-mirror/) | `/career-mirror` | Career introspection with triple-source advantage verification | ✅ v2.0 |
+| [tech-spectrum](skills/tech-spectrum/) | `/tech-spectrum` | AI disruption positioning — five-level spectrum from AI-vulnerable to AI-shaping | ✅ v1.0 |
+| [tech-compass](skills/tech-compass/) | `/tech-compass` | Action planning with Skill Quadrant Matrix and 30-60-90 day plans | ✅ v1.0 |
+
+### Three Operating Modes
+
+Each Scene Skill adapts to available data:
+
+| Mode | Condition | Experience |
+|------|-----------|------------|
+| **Enhanced** | Profile + upstream skill outputs | Full chain analysis with cross-validated data |
+| **Rich** | Clawsight profile available | Profile-driven analysis |
+| **Lite** | No profile data | Interactive Q&A, still useful |
+
+### Cross-Skill Data Flow
+
+Skills pass structured data via hidden HTML comment blocks at the end of reports:
+
+```
+career-mirror output  →  <!-- CAREER_MIRROR_OUTPUT ... -->
+tech-spectrum output  →  <!-- TECH_SPECTRUM_OUTPUT ... -->
+                              ↓
+                         tech-compass reads both
+```
+
+See [docs/scene-skills-protocol.md](docs/scene-skills-protocol.md) for the full protocol specification.
 
 <details>
 <summary>Planned Scene Skills</summary>
 
-- **tech-compass** — Technology learning roadmap based on your stack + market trends
 - **writing-voice** — Write content in your authentic voice
 - **learning-path** — Personalized learning plan from skill gaps
 - **stakeholder-briefer** — Quick context briefs for new collaborators
@@ -157,6 +187,9 @@ Clawsight generates profile data. **Scene Skills** consume it for specialized an
 | Doc | Content |
 |-----|---------|
 | [Architecture](docs/architecture.md) | System design, pipeline, data flow |
+| [Scene Skills Protocol](docs/scene-skills-protocol.md) | Cross-skill interaction rules and data passing |
+| [AI Trends](docs/ai-trends.md) | 8-track AI development timeline (130+ milestones) |
+| [Skill Layers](docs/skill-layers.md) | AI Skill Layers L0-L4 framework |
 | [Schema](docs/schema.md) | Canonical extraction schema |
 | [Scoring](docs/scoring.md) | Profile completeness scoring |
 | [Templates](docs/templates.md) | Output templates |
@@ -169,16 +202,18 @@ Clawsight generates profile data. **Scene Skills** consume it for specialized an
 - [x] **v0.3** — Multi-source engine + Pure Skill rewrite
 - [x] **v0.4** — Insight deepening + LinkedIn recommendations + refresh
 - [x] **v0.5** — Potential discovery + dialogue enrichment + career-mirror
-- [ ] **v1.0** — OpenClaw profile standard + 5 Scene Skills + Hindsight integration
+- [x] **v0.6** — Career Intelligence Chain (career-mirror v2 + tech-spectrum + tech-compass)
+- [ ] **v1.0** — OpenClaw profile standard + MCP Phase 2 + Hindsight integration
 
 ## Contributing
 
 Contributions are welcome! Here's how you can help:
 
-1. **Build a Scene Skill** — Create a new skill under `skills/` that consumes Clawsight's profile data for specialized analysis. See [career-mirror](skills/career-mirror/) as a reference.
+1. **Build a Scene Skill** — Create a new skill under `skills/` that consumes Clawsight's profile data for specialized analysis. See [career-mirror](skills/career-mirror/) as a reference and [scene-skills-protocol.md](docs/scene-skills-protocol.md) for the protocol spec.
 2. **Add a data source parser** — Propose a new source type (e.g., Stack Overflow, Dribbble) by opening an issue.
 3. **Improve cross-source heuristics** — The reconciliation rules in SKILL.md can always be sharpened with real-world edge cases.
-4. **Fix bugs & docs** — Typos, unclear instructions, broken examples — all PRs welcome.
+4. **Contribute to AI Trends** — Help maintain [docs/ai-trends.md](docs/ai-trends.md) with new milestones and updated assessments.
+5. **Fix bugs & docs** — Typos, unclear instructions, broken examples — all PRs welcome.
 
 ```bash
 # Fork → Clone → Create branch
